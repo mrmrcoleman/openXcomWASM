@@ -250,42 +250,34 @@
 
     /* ---- Author ---- */
     .author {
-      margin-top: 20px;
-      padding: 20px 24px;
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
       display: flex;
       align-items: center;
+      justify-content: center;
       gap: 16px;
-      flex-wrap: wrap;
+      margin-bottom: 12px;
     }
     .author .author-text {
-      font-size: 14px;
+      font-size: 13px;
       color: var(--text-dim);
-      flex: 1;
-      min-width: 200px;
     }
     .author .author-text strong { color: var(--text); }
     .social-links {
       display: flex;
-      gap: 12px;
+      gap: 8px;
     }
     .social-links a {
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 36px; height: 36px;
-      background: var(--border);
-      border-radius: 6px;
-      transition: background 0.2s;
+      width: 28px; height: 28px;
+      transition: opacity 0.2s;
+      opacity: 0.5;
     }
-    .social-links a:hover { background: #333; }
+    .social-links a:hover { opacity: 1; }
     .social-links a svg {
-      width: 18px; height: 18px;
+      width: 16px; height: 16px;
       fill: var(--text);
     }
-    .social-links a:hover svg { fill: #fff; }
 
     /* ---- Footer ---- */
     footer {
@@ -352,11 +344,6 @@
           <h3>Persistent saves</h3>
           <p>Save your game and come back later &mdash; saves persist across browser sessions. Export and import saves to transfer between devices.</p>
         </div>
-        <div class="feature">
-          <div class="icon">&#128176;</div>
-          <h3>Bring your own data</h3>
-          <p>You need a legitimate copy of X-COM: UFO Defense. Upload your game files once and play forever. Available on Steam for under $5.</p>
-        </div>
       </div>
     </div>
   </section>
@@ -368,14 +355,23 @@
       <ol class="steps">
         <li>
           <strong>Get the game data.</strong>
-          You need the original X-COM: UFO Defense files. Buy it on
+          You need a legitimate copy of X-COM: UFO Defense. It's available on
           <a href="https://store.steampowered.com/app/7760/XCOM_UFO_Defense/" target="_blank" rel="noopener">Steam</a> or
           <a href="https://www.gog.com/game/xcom_ufo_defense" target="_blank" rel="noopener">GOG</a>
-          if you don't already own it.
+          for under $5. Upload your files once and play forever.
         </li>
         <li>
-          <strong>Click "Play Now"</strong> and upload your <code>XCOM</code> data folder when prompted. On Steam, it's typically at:
-          <code>steamapps/common/XCom UFO Defense/XCOM/</code>
+          <strong>Click "Play Now"</strong> and upload your <code>XCOM</code> data folder when prompted.
+          Common locations (yours may vary):
+          <br><br>
+          <strong style="font-size: 13px; color: var(--text-dim);">Steam</strong><br>
+          <code>Windows: C:\Program Files\Steam\steamapps\common\XCom UFO Defense\XCOM\</code><br>
+          <code>macOS: ~/Library/Application Support/Steam/steamapps/common/XCom UFO Defense/XCOM/</code><br>
+          <code>Linux: ~/.local/share/Steam/steamapps/common/XCom UFO Defense/XCOM/</code>
+          <br><br>
+          <strong style="font-size: 13px; color: var(--text-dim);">GOG</strong><br>
+          <code>Windows: C:\GOG Games\X-COM UFO Defense\</code><br>
+          <code>Or check GOG Galaxy &rarr; game properties &rarr; installation folder</code>
         </li>
         <li>
           <strong>Play!</strong> Your data is cached in the browser &mdash; you only need to upload once. Saves persist automatically and can be exported as backups.
@@ -398,9 +394,10 @@
         </a>
       </div>
       <p style="margin-top: 16px; color: var(--text-dim); font-size: 14px;">
-        Already own a copy? You can also use data files from a CD or any other legitimate source.
-        The OpenXcom project may also support demo data for a limited experience &mdash;
-        see the <a href="https://openxcom.org" target="_blank" rel="noopener">OpenXcom wiki</a> for details.
+        Already own a copy? You can use data files from Steam, GOG, a CD, or any other
+        legitimate source. Look for the folder containing subfolders like GEODATA, GEOGRAPH,
+        MAPS, SOUND, etc. The OpenXcom project may also support demo data for a limited
+        experience &mdash; see the <a href="https://openxcom.org" target="_blank" rel="noopener">OpenXcom wiki</a> for details.
       </p>
     </div>
   </section>
@@ -469,9 +466,7 @@
   <footer>
     <div class="container">
       <div class="author">
-        <div class="author-text">
-          Built by <strong>Mark Coleman</strong>
-        </div>
+        <span class="author-text">Built by <strong>mrmrcoleman</strong></span>
         <div class="social-links">
           <!-- GitHub -->
           <a href="https://github.com/mrmrcoleman" target="_blank" rel="noopener" title="GitHub">
@@ -488,11 +483,9 @@
         </div>
       </div>
       <p style="margin-top: 20px;">
-        Powered by <a href="https://openxcom.org" target="_blank" rel="noopener">OpenXcom</a> (GPL v3) &middot;
-        <a href="https://github.com/mrmrcoleman/openXcomWASM" target="_blank" rel="noopener">WASM project on GitHub</a> &middot;
-        Built on a <a href="https://github.com/mrmrcoleman/OpenXcom" target="_blank" rel="noopener">fork of OpenXcom</a>
-      </p>
-      <p style="margin-top: 4px;">
+        <a href="https://github.com/mrmrcoleman/openXcomWASM" target="_blank" rel="noopener">openXcomWASM project on GitHub</a> &middot;
+        <a href="https://github.com/mrmrcoleman/OpenXcom" target="_blank" rel="noopener">OpenXcom fork</a> &middot;
+        GPL v3 &middot;
         X-COM: UFO Defense &copy; Mythos Games / MicroProse
       </p>
     </div>
