@@ -2,7 +2,7 @@
 
 Play [OpenXcom](https://openxcom.org) in your browser. The full C++ engine compiled to WebAssembly — no plugins, no install, works offline after first visit.
 
-**Live demo:** [playxcom.online](https://playxcom.online)
+**Play online:** [playxcom.online](https://playxcom.online)
 
 **Powered by:** [OpenXcom fork](https://github.com/mrmrcoleman/OpenXcom) (SDL2, Emscripten patches)
 
