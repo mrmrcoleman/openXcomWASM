@@ -7,11 +7,8 @@ build-wasm/
 *.mem
 # Allow web assets (service worker, bundled libs)
 !web/*.js
-# Allow committing built artifacts in dist/ for deployment
-!dist/
-!dist/*.js
-!dist/*.wasm
-!dist/*.html
+# dist/ is built by CI — don't commit it
+dist/
 
 # OpenXcom build dirs (when fork lives inside this repo)
 OpenXcom/build/
@@ -29,5 +26,3 @@ OpenXcom/obj/
 .env
 .env.local
 
-# Dist (optional; uncomment if you don't want to commit deploy artifacts)
-# dist/
