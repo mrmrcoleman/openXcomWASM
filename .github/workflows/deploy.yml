@@ -26,23 +26,7 @@ jobs:
           submodules: recursive
           fetch-depth: 2
 
-      # Detect whether we need a full WASM rebuild or just a web redeploy
-      - name: Check what changed
-        id: changes
-        run: |
-          # Compare HEAD to previous commit; on first push fall back to full build
-          CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "FULL_BUILD")
-          echo "Changed files:"
-          echo "$CHANGED"
-          if echo "$CHANGED" | grep -qvE '^(web/|scripts/serve\.sh|README\.md|\.github/workflows/)'; then
-            echo "needs_build=true" >> "$GITHUB_OUTPUT"
-            echo "=> Source files changed — full WASM build required"
-          else
-            echo "needs_build=false" >> "$GITHUB_OUTPUT"
-            echo "=> Only web/config files changed — skipping WASM build"
-          fi
-
-      # Try to restore cached WASM artifacts (used when skipping build)
+      # Try to restore cached WASM artifacts from a previous build
       - name: Restore WASM artifact cache
         id: wasm-cache
         uses: actions/cache@v4
@@ -55,13 +39,13 @@ jobs:
           restore-keys: |
             wasm-build-
 
+      # Only build WASM if we don't have a cached copy for this OpenXcom revision
       - name: Install Emscripten
-        if: steps.changes.outputs.needs_build == 'true' || steps.wasm-cache.outputs.cache-hit != 'true'
+        if: steps.wasm-cache.outputs.cache-hit != 'true'
         uses: mymindstorm/setup-emsdk@v14
 
-      # Cache the CMake build directory for incremental rebuilds
       - name: Restore CMake build cache
-        if: steps.changes.outputs.needs_build == 'true' || steps.wasm-cache.outputs.cache-hit != 'true'
+        if: steps.wasm-cache.outputs.cache-hit != 'true'
         uses: actions/cache@v4
         with:
           path: OpenXcom/build-wasm
@@ -70,20 +54,18 @@ jobs:
             cmake-build-
 
       - name: Build WASM
-        if: steps.changes.outputs.needs_build == 'true' || steps.wasm-cache.outputs.cache-hit != 'true'
+        if: steps.wasm-cache.outputs.cache-hit != 'true'
         run: ./scripts/build-wasm.sh
 
-      # Web-only deploy: just copy web assets alongside cached WASM
+      # Always copy fresh web assets into dist (alongside cached or freshly built WASM)
       - name: Copy web assets
-        if: steps.changes.outputs.needs_build == 'false' && steps.wasm-cache.outputs.cache-hit == 'true'
         run: |
           mkdir -p dist
           cp -v web/index.html   dist/
           cp -v web/play.html    dist/
           cp -v web/sw.js        dist/
           cp -v web/jszip.min.js dist/
-          echo "Reusing cached WASM artifacts:"
-          ls -lh dist/openxcom.*
+          ls -lh dist/
 
       - name: Stamp service worker version
         run: |
