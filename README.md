@@ -1,4 +1,4 @@
-# openXcomWASM
+# OpenXcomWASM
 
 Play [OpenXcom](https://openxcom.org) in your browser. The full C++ engine compiled to WebAssembly — no plugins, no install, works offline after first visit.
 
@@ -19,8 +19,8 @@ Play [OpenXcom](https://openxcom.org) in your browser. The full C++ engine compi
 
 ```bash
 # Clone with submodules (pulls the OpenXcom fork automatically)
-git clone --recursive https://github.com/mrmrcoleman/openXcomWASM.git
-cd openXcomWASM
+git clone --recursive https://github.com/mrmrcoleman/OpenXcomWASM.git
+cd OpenXcomWASM
 
 # Install Emscripten SDK
 # https://emscripten.org/docs/getting_started/downloads.html
@@ -37,7 +37,7 @@ cd openXcomWASM
 ## Repo layout
 
 ```
-openXcomWASM/
+OpenXcomWASM/
   OpenXcom/          Git submodule — the patched OpenXcom fork
   scripts/
     build-wasm.sh    Build the WASM binary

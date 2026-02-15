@@ -4,7 +4,7 @@
 #
 # Prerequisites:
 #   - dist/ must contain the built WASM artifacts + HTML pages
-#   - The openXcomWASM repo must have a remote named 'origin'
+#   - The OpenXcomWASM repo must have a remote named 'origin'
 
 set -e
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
