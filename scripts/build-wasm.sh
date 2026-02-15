@@ -71,8 +71,9 @@ emcmake cmake -B "$BUILD_DIR" -S "$OPENXCOM" \
   -DBUILD_PACKAGE=OFF \
   ${EXTRA_CMAKE_ARGS}
 
-echo "Building (this can take a while)..."
-emmake cmake --build "$BUILD_DIR" --config Release
+NPROC=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
+echo "Building with ${NPROC} parallel jobs (this can take a while on first build)..."
+emmake cmake --build "$BUILD_DIR" --config Release -- -j"${NPROC}"
 
 mkdir -p "$DIST_DIR"
 echo "Copying artifacts to ${DIST_DIR}..."
