@@ -1,0 +1,31 @@
+# Emscripten / WASM build
+build-wasm/
+*.wasm
+*.js
+*.worker.js
+*.data
+*.mem
+# Allow committing built artifacts in dist/ for deployment
+!dist/
+!dist/*.js
+!dist/*.wasm
+!dist/*.html
+
+# OpenXcom build dirs (when fork lives inside this repo)
+OpenXcom/build/
+OpenXcom/build-*/
+OpenXcom/obj/
+
+# IDE and OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*~
+
+# Local env
+.env
+.env.local
+
+# Dist (optional; uncomment if you don't want to commit deploy artifacts)
+# dist/

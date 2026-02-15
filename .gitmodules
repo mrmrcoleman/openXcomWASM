@@ -1,0 +1,3 @@
+[submodule "OpenXcom"]
+	path = OpenXcom
+	url = https://github.com/mrmrcoleman/OpenXcom.git
