@@ -292,7 +292,7 @@
   </div>
 
   <!-- JSZip for save export/import -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="jszip.min.js"></script>
 
   <script>
     /* ------------------------------------------------------------------ */
@@ -953,5 +953,12 @@
     };
   </script>
   <script async src="openxcom.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').catch(function(err) {
+        console.warn('SW registration failed:', err);
+      });
+    }
+  </script>
 </body>
 </html>

@@ -12,8 +12,10 @@ if [[ ! -f "${DIST_DIR}/openxcom.js" ]]; then
 fi
 
 # Copy web assets alongside WASM artifacts
-cp -v "${ROOT}/web/index.html" "${DIST_DIR}/"
-cp -v "${ROOT}/web/play.html"  "${DIST_DIR}/" 2>/dev/null || true
+cp -v "${ROOT}/web/index.html"    "${DIST_DIR}/"
+cp -v "${ROOT}/web/play.html"     "${DIST_DIR}/" 2>/dev/null || true
+cp -v "${ROOT}/web/sw.js"         "${DIST_DIR}/" 2>/dev/null || true
+cp -v "${ROOT}/web/jszip.min.js"  "${DIST_DIR}/" 2>/dev/null || true
 
 echo ""
 echo "Serving at http://localhost:8080"

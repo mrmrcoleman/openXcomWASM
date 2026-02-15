@@ -5,6 +5,8 @@ build-wasm/
 *.worker.js
 *.data
 *.mem
+# Allow web assets (service worker, bundled libs)
+!web/*.js
 # Allow committing built artifacts in dist/ for deployment
 !dist/
 !dist/*.js

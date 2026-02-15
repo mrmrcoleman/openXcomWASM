@@ -318,8 +318,10 @@
     <h1>OPENXCOM</h1>
     <div class="subtitle">// BROWSER EDITION</div>
     <p class="tagline">
-      The classic X-COM: UFO Defense experience, running natively in your browser.
-      No downloads. No installs. Just pure tactical alien combat.
+      MicroProse's 1994 masterpiece <strong>X-COM: UFO Defense</strong>, lovingly rebuilt for
+      the modern era by the <a href="https://openxcom.org" target="_blank" rel="noopener">OpenXcom</a>
+      community &mdash; now running natively in your browser. No downloads. No installs.
+      Just pure tactical alien combat &#128125;
     </p>
     <a href="play.html" class="cta">PLAY NOW</a>
   </div>
@@ -331,18 +333,18 @@
       <div class="features">
         <div class="feature">
           <div class="icon">&#127760;</div>
-          <h3>Runs in your browser</h3>
-          <p>OpenXcom compiled to WebAssembly. No plugins, no extensions, no install. Works in Chrome, Firefox, Edge, and Safari.</p>
+          <h3>Runs in your browser &mdash; even offline</h3>
+          <p>Compiled to WebAssembly &mdash; no plugins, no install. Works in Chrome, Firefox, Edge, and Safari. Cached locally after first visit for full offline play.</p>
         </div>
         <div class="feature">
           <div class="icon">&#128274;</div>
           <h3>Your data stays local</h3>
-          <p>Game files are stored in your browser's IndexedDB. Nothing is uploaded to any server. Your saves never leave your machine.</p>
+          <p>Game files live in your browser's IndexedDB &mdash; nothing is uploaded to any server. Your data and saves never leave your machine. You are in full control.</p>
         </div>
         <div class="feature">
           <div class="icon">&#128190;</div>
           <h3>Persistent saves</h3>
-          <p>Save your game and come back later &mdash; saves persist across browser sessions. Export and import saves to transfer between devices.</p>
+          <p>Save your game and come back later &mdash; progress persists across browser sessions. Export and import <code>.sav</code> files to move games between devices.</p>
         </div>
       </div>
     </div>
@@ -358,7 +360,7 @@
           You need a legitimate copy of X-COM: UFO Defense. It's available on
           <a href="https://store.steampowered.com/app/7760/XCOM_UFO_Defense/" target="_blank" rel="noopener">Steam</a> or
           <a href="https://www.gog.com/game/xcom_ufo_defense" target="_blank" rel="noopener">GOG</a>
-          for under $5. Upload your files once and play forever.
+          for under $2. Upload your files once and play forever.
         </li>
         <li>
           <strong>Click "Play Now"</strong> and upload your <code>XCOM</code> data folder when prompted.
@@ -374,7 +376,11 @@
           <code>Or check GOG Galaxy &rarr; game properties &rarr; installation folder</code>
         </li>
         <li>
-          <strong>Play!</strong> Your data is cached in the browser &mdash; you only need to upload once. Saves persist automatically and can be exported as backups.
+          <strong>Play!</strong> Your data is cached in the browser &mdash; you only need to upload once.
+        </li>
+        <li>
+          <strong>Manage your data.</strong>
+          Once in-game, look for the gear icon (&#9881;) in the top-right corner. From there you can export your saves as a <code>.zip</code> backup, import saves from another session or device, or reset all stored data to start fresh.
         </li>
       </ol>
     </div>
@@ -483,13 +489,20 @@
         </div>
       </div>
       <p style="margin-top: 20px;">
-        <a href="https://github.com/mrmrcoleman/openXcomWASM" target="_blank" rel="noopener">openXcomWASM project on GitHub</a> &middot;
-        <a href="https://github.com/mrmrcoleman/OpenXcom" target="_blank" rel="noopener">OpenXcom fork</a> &middot;
-        GPL v3 &middot;
+        <a href="https://github.com/mrmrcoleman/openXcomWASM" target="_blank" rel="noopener">openXcomWASM</a> powered by <a href="https://github.com/mrmrcoleman/OpenXcom" target="_blank" rel="noopener">OpenXcom fork</a> &middot; GPL v3 &middot;
         X-COM: UFO Defense &copy; Mythos Games / MicroProse
       </p>
     </div>
   </footer>
 
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').then(function(reg) {
+        console.log('Service worker registered (scope: ' + reg.scope + ')');
+      }).catch(function(err) {
+        console.warn('Service worker registration failed:', err);
+      });
+    }
+  </script>
 </body>
 </html>
