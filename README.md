@@ -80,6 +80,12 @@ brew install cmake sdl2 sdl2_mixer sdl2_image sdl2_gfx yaml-cpp   # macOS
 ./scripts/build-desktop.sh
 ```
 
+## Deployment
+
+Pushes to `main` trigger a GitHub Actions workflow (`.github/workflows/deploy.yml`) that builds the WASM binary and deploys to GitHub Pages. WASM build artifacts are cached, so web-only changes deploy in about a minute. The service worker's cache version is automatically stamped with the commit SHA for cache busting.
+
+To use a custom domain, set the `CUSTOM_DOMAIN` repository variable in GitHub (Settings > Variables > Actions). The workflow writes a `CNAME` file to the deploy output automatically.
+
 ## How it works
 
 The OpenXcom C++ engine is compiled to WebAssembly using Emscripten. Static game data (common/standard resources) is preloaded into the WASM virtual filesystem. User-provided game data (the `UFO/` directory from a legitimate copy of X-COM) is uploaded once and persisted in IndexedDB via Emscripten's IDBFS. Saves are synced to IndexedDB every 30 seconds during gameplay.
