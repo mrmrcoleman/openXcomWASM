@@ -196,6 +196,84 @@
     #upload-footer a { color: var(--green-dim); text-decoration: none; }
     #upload-footer a:hover { color: var(--green); }
 
+    /* ---- Error / diagnostic overlay ---- */
+    #error-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.92);
+      z-index: 50;
+      overflow-y: auto;
+      color: var(--text);
+      font-family: var(--sans);
+    }
+    #error-overlay .error-inner {
+      max-width: 600px;
+      margin: 60px auto;
+      padding: 0 20px;
+    }
+    #error-overlay h2 {
+      font-family: var(--mono);
+      color: #f55;
+      font-size: 22px;
+      margin-bottom: 16px;
+      letter-spacing: 1px;
+    }
+    #error-overlay h2::before { content: '! '; }
+    #error-overlay p {
+      line-height: 1.7;
+      margin-bottom: 16px;
+      font-size: 15px;
+    }
+    #error-overlay .error-detail {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: #f88;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 200px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
+    #error-overlay .error-log {
+      background: #111;
+      border: 1px solid #222;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-dim);
+      max-height: 300px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+    }
+    #error-overlay .error-log .log-ok { color: var(--green); }
+    #error-overlay .error-log .log-warn { color: #fa0; }
+    #error-overlay .error-log .log-fail { color: #f55; }
+    #error-overlay .error-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    #error-overlay .error-actions button,
+    #error-overlay .error-actions a {
+      padding: 10px 24px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: var(--mono);
+      cursor: pointer;
+      text-decoration: none;
+      border: none;
+    }
+    #error-overlay .btn-retry { background: var(--green); color: #000; font-weight: bold; }
+    #error-overlay .btn-retry:hover { background: #00ff55; }
+    #error-overlay .btn-reset-err { background: #333; color: var(--text); }
+    #error-overlay .btn-reset-err:hover { background: #444; }
+
     /* ---- Toolbar (visible during gameplay) ---- */
     #toolbar {
       display: none;
@@ -389,6 +467,21 @@
     </div>
   </div>
 
+  <!-- Error overlay -->
+  <div id="error-overlay">
+    <div class="error-inner">
+      <h2 id="error-title">SOMETHING WENT WRONG</h2>
+      <p id="error-message">The game failed to start. Details below.</p>
+      <div class="error-detail" id="error-detail"></div>
+      <p style="font-size: 13px; color: var(--text-dim);">Startup log:</p>
+      <div class="error-log" id="error-log"></div>
+      <div class="error-actions">
+        <button class="btn-retry" onclick="location.reload()">Reload Page</button>
+        <button class="btn-reset-err" id="error-reset-btn">Reset All Data</button>
+      </div>
+    </div>
+  </div>
+
   <!-- JSZip for save export/import -->
   <script src="jszip.min.js"></script>
 
@@ -408,6 +501,122 @@
     var PERSIST_DIR     = '/home/web_user/.local/share/openxcom';
     var UFO_DIR         = PERSIST_DIR + '/UFO';
     var REQUIRED_DIRS   = ['GEODATA','GEOGRAPH','MAPS','ROUTES','SOUND','TERRAIN','UFOGRAPH','UNITS'];
+
+    /* ------------------------------------------------------------------ */
+    /*  Diagnostic log                                                    */
+    /* ------------------------------------------------------------------ */
+    var _diagLog = [];
+    function diagLog(msg, level) {
+      level = level || 'info';
+      var ts = new Date().toISOString().slice(11, 23);
+      var entry = { ts: ts, msg: msg, level: level };
+      _diagLog.push(entry);
+      if (level === 'fail') console.error('[DIAG] ' + msg);
+      else if (level === 'warn') console.warn('[DIAG] ' + msg);
+      else console.log('[DIAG] ' + msg);
+    }
+
+    function getDiagHTML() {
+      return _diagLog.map(function(e) {
+        var cls = e.level === 'ok' ? 'log-ok' : e.level === 'warn' ? 'log-warn' : e.level === 'fail' ? 'log-fail' : '';
+        var prefix = e.level === 'ok' ? '  OK  ' : e.level === 'warn' ? ' WARN ' : e.level === 'fail' ? ' FAIL ' : ' INFO ';
+        return '<span class="' + cls + '">' + e.ts + prefix + e.msg + '</span>';
+      }).join('\n');
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Error overlay                                                     */
+    /* ------------------------------------------------------------------ */
+    function showError(title, message, detail) {
+      var overlay = document.getElementById('error-overlay');
+      document.getElementById('error-title').textContent = title || 'SOMETHING WENT WRONG';
+      document.getElementById('error-message').textContent = message || 'The game failed to start.';
+      document.getElementById('error-detail').textContent = detail || 'No additional details.';
+      document.getElementById('error-log').innerHTML = getDiagHTML();
+      overlay.style.display = 'block';
+      uploadScreen.style.display = 'none';
+      statusEl.style.display = 'none';
+    }
+
+    document.getElementById('error-reset-btn').addEventListener('click', function() {
+      var dbName = PERSIST_DIR;
+      indexedDB.deleteDatabase(dbName);
+      location.reload();
+    });
+
+    /* Global error handler to catch unhandled exceptions */
+    window.addEventListener('error', function(event) {
+      diagLog('Uncaught error: ' + event.message + ' at ' + (event.filename || '?') + ':' + (event.lineno || '?'), 'fail');
+      if (document.getElementById('error-overlay').style.display !== 'block') {
+        showError('RUNTIME ERROR', 'The game crashed unexpectedly.', event.message + '\n\nFile: ' + (event.filename || 'unknown') + '\nLine: ' + (event.lineno || '?'));
+      }
+    });
+
+    window.addEventListener('unhandledrejection', function(event) {
+      var reason = event.reason ? (event.reason.message || String(event.reason)) : 'Unknown';
+      diagLog('Unhandled promise rejection: ' + reason, 'fail');
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  Pre-flight capability checks                                      */
+    /* ------------------------------------------------------------------ */
+    function runPreflightChecks() {
+      var allGood = true;
+
+      /* WebAssembly */
+      if (typeof WebAssembly === 'object' && typeof WebAssembly.instantiate === 'function') {
+        diagLog('WebAssembly supported', 'ok');
+      } else {
+        diagLog('WebAssembly NOT supported', 'fail');
+        allGood = false;
+      }
+
+      /* IndexedDB */
+      if (window.indexedDB) {
+        diagLog('IndexedDB available', 'ok');
+      } else {
+        diagLog('IndexedDB NOT available (private browsing?)', 'fail');
+        allGood = false;
+      }
+
+      /* Canvas / WebGL */
+      try {
+        var testCanvas = document.createElement('canvas');
+        var gl = testCanvas.getContext('webgl') || testCanvas.getContext('webgl2') || testCanvas.getContext('experimental-webgl');
+        if (gl) {
+          diagLog('WebGL supported (' + gl.getParameter(gl.VERSION) + ')', 'ok');
+        } else {
+          diagLog('WebGL NOT available — game may not render', 'warn');
+        }
+      } catch(e) {
+        diagLog('WebGL check failed: ' + e.message, 'warn');
+      }
+
+      /* Memory — rough check for 128MB+ */
+      try {
+        var testBuf = new ArrayBuffer(128 * 1024 * 1024);
+        if (testBuf.byteLength === 128 * 1024 * 1024) {
+          diagLog('Memory allocation test passed (128 MB)', 'ok');
+        }
+        testBuf = null;
+      } catch(e) {
+        diagLog('Memory allocation test failed — may not have enough RAM', 'warn');
+      }
+
+      /* Browser info */
+      diagLog('User agent: ' + navigator.userAgent, 'info');
+      diagLog('Platform: ' + (navigator.platform || 'unknown'), 'info');
+
+      if (!allGood) {
+        showError(
+          'BROWSER NOT SUPPORTED',
+          'Your browser is missing features required to run OpenXcom.',
+          'See the startup log below for details. Try a recent version of Chrome, Firefox, Edge, or Safari.'
+        );
+      }
+
+      return allGood;
+    }
 
     /* Files selected by the user (array of {path, file} objects) */
     var pendingFiles = [];
@@ -750,19 +959,53 @@
     }
 
     function startGame() {
+      diagLog('startGame() called');
       uploadScreen.style.display = 'none';
       canvasEl.style.display = 'block';
       toolbar.style.display = 'block';
       statusEl.textContent = 'Starting OpenXcom...';
       statusEl.style.display = 'block';
 
-      /* Launch main() — we set INVOKE_RUN=0 so it hasn't started yet */
-      Module.callMain();
+      try {
+        diagLog('Calling Module.callMain()...');
+        Module.callMain();
+        diagLog('Module.callMain() returned successfully', 'ok');
+      } catch(e) {
+        diagLog('callMain() threw: ' + (e.message || e), 'fail');
+        showError(
+          'GAME FAILED TO START',
+          'OpenXcom crashed during startup. This can happen if game data files are incomplete or corrupted.',
+          String(e.message || e) + '\n\n' + (e.stack || '')
+        );
+        return;
+      }
 
       statusEl.textContent = 'Running...';
       setTimeout(function() { statusEl.style.display = 'none'; }, 2000);
       setTimeout(fitCanvas, 200);
       setTimeout(fitCanvas, 1000);
+
+      /* Watchdog: if canvas is still blank after 8 seconds, warn the user */
+      setTimeout(function() {
+        try {
+          var ctx = canvasEl.getContext('2d');
+          if (ctx) {
+            var px = ctx.getImageData(0, 0, Math.min(canvasEl.width, 100), Math.min(canvasEl.height, 100));
+            var allBlack = true;
+            for (var i = 0; i < px.data.length; i += 4) {
+              if (px.data[i] !== 0 || px.data[i+1] !== 0 || px.data[i+2] !== 0) {
+                allBlack = false;
+                break;
+              }
+            }
+            if (allBlack) {
+              diagLog('Canvas appears blank 8s after launch', 'warn');
+            } else {
+              diagLog('Canvas is rendering content', 'ok');
+            }
+          }
+        } catch(e) { /* cross-origin or other issue, ignore */ }
+      }, 8000);
     }
 
     /**
@@ -771,26 +1014,40 @@
      * the game or shows the upload screen.
      */
     function onEngineReady() {
+      diagLog('Emscripten runtime initialized', 'ok');
       statusEl.textContent = 'Checking for game data...';
 
-      /* Create the persistent directory tree and mount IDBFS */
-      mkdirp(PERSIST_DIR);
-      Module.FS.mount(Module.FS.filesystems.IDBFS, {}, PERSIST_DIR);
+      try {
+        mkdirp(PERSIST_DIR);
+        Module.FS.mount(Module.FS.filesystems.IDBFS, {}, PERSIST_DIR);
+        diagLog('IDBFS mounted at ' + PERSIST_DIR, 'ok');
+      } catch(e) {
+        diagLog('IDBFS mount failed: ' + e.message, 'fail');
+        showError(
+          'STORAGE ERROR',
+          'Failed to set up browser storage. This can happen in private/incognito mode.',
+          e.message + '\n\n' + (e.stack || '')
+        );
+        return;
+      }
 
-      /* Populate the VFS from IndexedDB */
-      syncFromIDB(function() {
+      syncFromIDB(function(err) {
+        if (err) {
+          diagLog('syncfs(populate) error: ' + err, 'warn');
+        } else {
+          diagLog('IndexedDB synced to VFS', 'ok');
+        }
         window._idbfsMounted = true;
 
-        /* Write any saves that were queued on the upload screen */
         if (window._pendingRestoreSaves || window._pendingRestoreLoose) {
           writePendingRestores();
         }
 
         if (hasUFOData()) {
-          console.log('UFO data found in IndexedDB — starting game');
+          diagLog('UFO game data found in storage', 'ok');
           startGame();
         } else {
-          console.log('No UFO data found — showing upload screen');
+          diagLog('No UFO game data found — showing upload screen');
           showUploadScreen();
         }
       });
@@ -1036,19 +1293,42 @@
     /* ------------------------------------------------------------------ */
     /*  Emscripten Module configuration                                   */
     /* ------------------------------------------------------------------ */
+    diagLog('Running pre-flight checks...');
+    var preflightOk = runPreflightChecks();
+
+    var _engineErrors = [];
     var Module = {
       canvas: canvasEl,
-      noInitialRun: true,        /* we call callMain() ourselves */
+      noInitialRun: true,
       print: function(text) { console.log(text); },
-      printErr: function(text) { console.error(text); },
+      printErr: function(text) {
+        console.error(text);
+        _engineErrors.push(text);
+        /* Keep last 50 engine errors for diagnostics */
+        if (_engineErrors.length > 50) _engineErrors.shift();
+      },
       setStatus: function(text) {
-        if (text) statusEl.textContent = text;
+        if (text) {
+          statusEl.textContent = text;
+          diagLog('Engine status: ' + text);
+        }
         else statusEl.style.display = 'none';
       },
       onRuntimeInitialized: function() {
-        onEngineReady();
+        if (preflightOk) {
+          onEngineReady();
+        }
+      },
+      onAbort: function(what) {
+        diagLog('Emscripten aborted: ' + what, 'fail');
+        showError(
+          'ENGINE ABORTED',
+          'The WebAssembly engine aborted unexpectedly.',
+          String(what) + '\n\nRecent engine errors:\n' + _engineErrors.slice(-10).join('\n')
+        );
       },
     };
+    diagLog('Loading openxcom.js...');
   </script>
   <script async src="openxcom.js"></script>
   <script>
