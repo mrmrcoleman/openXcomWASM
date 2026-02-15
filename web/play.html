@@ -678,6 +678,82 @@
       }
     }
 
+    /**
+     * Deeper validation: check for key files that OpenXcom needs.
+     * Returns { ok: bool, found: [...], missing: [...], details: string }
+     */
+    var KEY_FILES = [
+      'GEODATA/WORLD.DAT',
+      'GEODATA/OBDATA.DAT',
+      'GEOGRAPH/BASEBITS.PCK',
+      'GEOGRAPH/INTICON.PCK',
+      'MAPS/XBASE_00.MAP',
+      'ROUTES/XBASE_00.RMP',
+      'SOUND/SAMPLE.CAT',
+      'TERRAIN/BLANKS.MCD',
+      'UFOGRAPH/CURSOR.PCK',
+      'UNITS/XCOM_0.PCK',
+    ];
+
+    function validateGameData() {
+      var found = [];
+      var missing = [];
+      var totalFiles = 0;
+
+      /* Count total files and check key files */
+      for (var d = 0; d < REQUIRED_DIRS.length; d++) {
+        try {
+          var dirPath = UFO_DIR + '/' + REQUIRED_DIRS[d];
+          /* Try both original case and uppercase */
+          var entries;
+          try { entries = Module.FS.readdir(dirPath); } catch(e) {
+            try { entries = Module.FS.readdir(UFO_DIR + '/' + REQUIRED_DIRS[d].toLowerCase()); } catch(e2) {
+              entries = [];
+            }
+          }
+          var fileCount = entries.filter(function(e) { return e !== '.' && e !== '..'; }).length;
+          totalFiles += fileCount;
+          diagLog('  ' + REQUIRED_DIRS[d] + '/: ' + fileCount + ' file(s)');
+        } catch(e) {
+          diagLog('  ' + REQUIRED_DIRS[d] + '/: NOT FOUND', 'warn');
+        }
+      }
+
+      for (var i = 0; i < KEY_FILES.length; i++) {
+        var filePath = UFO_DIR + '/' + KEY_FILES[i];
+        try {
+          var stat = Module.FS.stat(filePath);
+          if (stat.size > 0) {
+            found.push(KEY_FILES[i]);
+          } else {
+            missing.push(KEY_FILES[i] + ' (empty)');
+          }
+        } catch(e) {
+          /* Try case-insensitive: uppercase whole path */
+          try {
+            var altPath = UFO_DIR + '/' + KEY_FILES[i].toUpperCase();
+            var stat2 = Module.FS.stat(altPath);
+            if (stat2.size > 0) {
+              found.push(KEY_FILES[i]);
+            } else {
+              missing.push(KEY_FILES[i] + ' (empty)');
+            }
+          } catch(e2) {
+            missing.push(KEY_FILES[i]);
+          }
+        }
+      }
+
+      var ok = missing.length <= 2; /* Allow a couple missing — some versions differ */
+      var details = 'Total files in UFO/: ~' + totalFiles + '\n' +
+        'Key files found: ' + found.length + '/' + KEY_FILES.length + '\n';
+      if (missing.length > 0) {
+        details += 'Missing: ' + missing.join(', ');
+      }
+
+      return { ok: ok, found: found, missing: missing, details: details };
+    }
+
     /* ------------------------------------------------------------------ */
     /*  Upload screen logic                                               */
     /* ------------------------------------------------------------------ */
@@ -766,17 +842,88 @@
 
     function showPendingFiles() {
       if (pendingFiles.length === 0) return;
-      /* Show a summary */
+
+      /* Collect top-level directory names */
       var dirs = {};
       pendingFiles.forEach(function(f) {
         var d = f.path.split('/')[0].toUpperCase();
         dirs[d] = (dirs[d] || 0) + 1;
       });
-      var summary = Object.keys(dirs).sort().map(function(d) {
-        return d + '/ (' + dirs[d] + ' files)';
+      var topDirs = Object.keys(dirs).sort();
+
+      /* Check: do the expected data directories appear at the top level? */
+      var foundAtTop = REQUIRED_DIRS.filter(function(r) { return topDirs.indexOf(r) !== -1; });
+      var missingAtTop = REQUIRED_DIRS.filter(function(r) { return topDirs.indexOf(r) === -1; });
+
+      /* Check: are they nested one level deeper? (common mistake) */
+      var nestedPrefix = null;
+      if (missingAtTop.length > 4) {
+        /* Most required dirs missing at top — check if they're inside a subdirectory */
+        var secondLevel = {};
+        pendingFiles.forEach(function(f) {
+          var parts = f.path.split('/');
+          if (parts.length >= 2) {
+            var key = parts[0].toUpperCase() + '/' + parts[1].toUpperCase();
+            secondLevel[key] = true;
+          }
+        });
+        for (var i = 0; i < topDirs.length; i++) {
+          var prefix = topDirs[i];
+          var matchCount = REQUIRED_DIRS.filter(function(r) {
+            return secondLevel[prefix + '/' + r];
+          }).length;
+          if (matchCount >= 4) {
+            nestedPrefix = prefix;
+            break;
+          }
+        }
+      }
+
+      if (nestedPrefix) {
+        /* Auto-fix: strip the extra nesting level */
+        diagLog('Detected nested data folder: ' + nestedPrefix + '/ — auto-correcting paths', 'warn');
+        var prefixLower = nestedPrefix.toLowerCase() + '/';
+        pendingFiles = pendingFiles.filter(function(f) {
+          return f.path.toUpperCase().startsWith(nestedPrefix + '/');
+        }).map(function(f) {
+          return { path: f.path.substring(f.path.indexOf('/') + 1), file: f.file };
+        });
+        /* Recalculate dirs after fix */
+        dirs = {};
+        pendingFiles.forEach(function(f) {
+          var d = f.path.split('/')[0].toUpperCase();
+          dirs[d] = (dirs[d] || 0) + 1;
+        });
+        topDirs = Object.keys(dirs).sort();
+        foundAtTop = REQUIRED_DIRS.filter(function(r) { return topDirs.indexOf(r) !== -1; });
+        missingAtTop = REQUIRED_DIRS.filter(function(r) { return topDirs.indexOf(r) === -1; });
+      }
+
+      /* Build the display summary */
+      var summary = topDirs.map(function(d) {
+        var isExpected = REQUIRED_DIRS.indexOf(d) !== -1;
+        return (isExpected ? '&#9989; ' : '') + d + '/ (' + dirs[d] + ' files)';
       }).join('<br>');
-      fileListEl.innerHTML = '<strong>' + pendingFiles.length + ' files found:</strong><br>' + summary;
+
+      var warning = '';
+      if (missingAtTop.length > 0 && missingAtTop.length <= 4) {
+        warning = '<br><span style="color: #fa0;">&#9888; Missing expected folders: ' + missingAtTop.join(', ') +
+          '</span><br><span style="color: var(--text-dim); font-size: 12px;">The game may still work, but some features could be broken.</span>';
+      } else if (missingAtTop.length > 4) {
+        warning = '<br><span style="color: #f55;">&#9888; This doesn\'t look like X-COM game data.</span>' +
+          '<br><span style="color: var(--text-dim); font-size: 12px;">Expected folders like GEODATA, GEOGRAPH, MAPS, SOUND, etc. ' +
+          'Make sure you\'re selecting the folder that directly contains these subdirectories.</span>';
+      }
+
+      if (nestedPrefix) {
+        warning += '<br><span style="color: var(--green); font-size: 12px;">&#8627; Auto-corrected: found data inside ' + nestedPrefix + '/ subfolder.</span>';
+      }
+
+      fileListEl.innerHTML = '<strong>' + pendingFiles.length + ' files found:</strong><br>' + summary + warning;
       uploadBtn.style.display = 'block';
+
+      diagLog('Upload analysis: ' + pendingFiles.length + ' files, ' + foundAtTop.length + '/' + REQUIRED_DIRS.length +
+        ' expected dirs found' + (nestedPrefix ? ' (auto-fixed from ' + nestedPrefix + '/)' : ''));
     }
 
     /** Write pending files into the Emscripten VFS and persist to IndexedDB */
@@ -790,6 +937,31 @@
 
       function writeNext() {
         if (done >= total) {
+          uploadProgress.textContent = 'Validating game data...';
+          diagLog('Upload complete — validating game data...');
+
+          var validation = validateGameData();
+          diagLog('Validation: ' + validation.found.length + '/' + KEY_FILES.length +
+            ' key files found, ' + validation.missing.length + ' missing',
+            validation.ok ? 'ok' : 'warn');
+
+          if (!validation.ok) {
+            diagLog('Validation failed: ' + validation.details, 'fail');
+            uploadProgress.style.display = 'none';
+            showError(
+              'INCOMPLETE GAME DATA',
+              'The uploaded files appear to be missing key X-COM data files. ' +
+              'Make sure you selected the correct folder — it should directly contain subfolders like GEODATA, GEOGRAPH, MAPS, SOUND, etc.',
+              validation.details +
+              '\n\nCommon fixes:\n' +
+              '- Select the XCOM/ folder, not its parent directory\n' +
+              '- On Steam: look inside steamapps/common/XCom UFO Defense/XCOM/\n' +
+              '- On GOG: look inside the X-COM installation folder\n' +
+              '- Make sure the game is fully installed (not just a shortcut)'
+            );
+            return;
+          }
+
           uploadProgress.textContent = 'Saving to browser storage...';
           syncToIDB(function() {
             uploadProgress.textContent = 'Done!';
@@ -1100,6 +1272,10 @@
 
         if (hasUFOData()) {
           diagLog('UFO game data found in storage', 'ok');
+          var validation = validateGameData();
+          diagLog('Data validation: ' + validation.found.length + '/' + KEY_FILES.length +
+            ' key files' + (validation.missing.length > 0 ? ', missing: ' + validation.missing.join(', ') : ''),
+            validation.ok ? 'ok' : 'warn');
           startGame();
         } else {
           diagLog('No UFO game data found — showing upload screen');
