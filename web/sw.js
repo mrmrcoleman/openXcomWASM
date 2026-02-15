@@ -50,23 +50,44 @@ self.addEventListener('activate', function(event) {
   );
 });
 
-/* Fetch: serve from cache first, fall back to network */
+/* Fetch: network-first for HTML pages, cache-first for heavy assets */
 self.addEventListener('fetch', function(event) {
-  event.respondWith(
-    caches.match(event.request).then(function(cachedResponse) {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request).then(function(networkResponse) {
-        /* Cache any new requests we haven't seen (e.g. fonts) */
-        if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+  var url = new URL(event.request.url);
+  var isNavigation = event.request.mode === 'navigate';
+  var isHTML = url.pathname.endsWith('.html') || url.pathname.endsWith('/');
+
+  if (isNavigation || isHTML) {
+    /* Network-first for pages — always get the latest HTML */
+    event.respondWith(
+      fetch(event.request).then(function(networkResponse) {
+        if (networkResponse && networkResponse.status === 200) {
           var responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then(function(cache) {
             cache.put(event.request, responseToCache);
           });
         }
         return networkResponse;
-      });
-    })
-  );
+      }).catch(function() {
+        return caches.match(event.request);
+      })
+    );
+  } else {
+    /* Cache-first for assets (wasm, js, data) — fast and offline-friendly */
+    event.respondWith(
+      caches.match(event.request).then(function(cachedResponse) {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        return fetch(event.request).then(function(networkResponse) {
+          if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
+            var responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then(function(cache) {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        });
+      })
+    );
+  }
 });
