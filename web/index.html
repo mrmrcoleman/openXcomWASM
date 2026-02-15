@@ -2,431 +2,420 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>OpenXcom</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenXcom in your Browser</title>
+  <meta name="description" content="Play X-COM: UFO Defense in your browser using OpenXcom compiled to WebAssembly. No install required — bring your own game data.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --green: #00ff41;
+      --green-dim: #00aa2a;
+      --green-bg: rgba(0,255,65,0.06);
+      --dark: #0a0a0a;
+      --card: #111;
+      --border: #222;
+      --text: #ccc;
+      --text-dim: #888;
+      --mono: 'Share Tech Mono', monospace;
+      --sans: 'Inter', system-ui, sans-serif;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+    html { scroll-behavior: smooth; }
 
-    /* ---- Game canvas (hidden until the game starts) ---- */
-    #canvas {
-      display: none;
-      position: absolute;
-      top: 50%; left: 50%;
-      transform: translate(-50%, -50%);
-      image-rendering: pixelated;
-      image-rendering: crisp-edges;
-      cursor: none;
+    body {
+      background: var(--dark);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.7;
+      min-height: 100vh;
     }
 
-    /* ---- Status bar ---- */
-    #status {
-      position: absolute;
-      bottom: 20px;
-      width: 100%;
-      text-align: center;
-      color: #0f0;
-      font-family: monospace;
-      font-size: 14px;
-      z-index: 10;
-    }
-
-    /* ---- Upload screen ---- */
-    #upload-screen {
-      display: none;
-      position: absolute;
+    /* ---- Scanline overlay (subtle retro CRT effect) ---- */
+    body::after {
+      content: '';
+      position: fixed;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: #111;
-      color: #ccc;
-      z-index: 20;
-      overflow-y: auto;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.03) 2px,
+        rgba(0,0,0,0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 100;
     }
-    #upload-screen .inner {
-      max-width: 640px;
-      margin: 60px auto;
+
+    /* ---- Header / Hero ---- */
+    .hero {
+      text-align: center;
+      padding: 80px 20px 60px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(0,255,65,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero h1 {
+      font-family: var(--mono);
+      font-size: clamp(32px, 6vw, 56px);
+      color: var(--green);
+      letter-spacing: 2px;
+      margin-bottom: 8px;
+      text-shadow: 0 0 30px rgba(0,255,65,0.3);
+    }
+    .hero .subtitle {
+      font-family: var(--mono);
+      font-size: clamp(14px, 2.5vw, 18px);
+      color: var(--green-dim);
+      margin-bottom: 32px;
+    }
+    .hero .tagline {
+      font-size: 18px;
+      color: var(--text);
+      max-width: 540px;
+      margin: 0 auto 40px;
+    }
+
+    /* ---- CTA Button ---- */
+    .cta {
+      display: inline-block;
+      padding: 16px 48px;
+      background: var(--green);
+      color: #000;
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 6px;
+      letter-spacing: 1px;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 0 20px rgba(0,255,65,0.3);
+    }
+    .cta:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 40px rgba(0,255,65,0.5);
+    }
+
+    /* ---- Section layout ---- */
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
       padding: 0 20px;
     }
-    #upload-screen h1 {
-      color: #0f0;
-      font-family: monospace;
-      font-size: 28px;
-      margin-bottom: 8px;
+    section {
+      padding: 60px 0;
     }
-    #upload-screen h2 {
-      color: #0a0;
-      font-family: monospace;
-      font-size: 16px;
-      font-weight: normal;
-      margin-bottom: 24px;
+    section + section {
+      border-top: 1px solid var(--border);
     }
-    #upload-screen p {
-      line-height: 1.6;
-      margin-bottom: 16px;
+    h2 {
+      font-family: var(--mono);
+      font-size: 22px;
+      color: var(--green);
+      margin-bottom: 20px;
+      letter-spacing: 1px;
+    }
+    h2::before {
+      content: '> ';
+      color: var(--green-dim);
+    }
+
+    /* ---- Feature cards ---- */
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-top: 24px;
+    }
+    .feature {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .feature .icon { font-size: 28px; margin-bottom: 8px; }
+    .feature h3 {
+      font-family: var(--mono);
+      font-size: 15px;
+      color: var(--green);
+      margin-bottom: 6px;
+    }
+    .feature p {
+      font-size: 14px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    /* ---- Steps ---- */
+    .steps {
+      counter-reset: step;
+      list-style: none;
+      margin-top: 20px;
+    }
+    .steps li {
+      counter-increment: step;
+      position: relative;
+      padding: 16px 16px 16px 56px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 12px;
       font-size: 15px;
     }
-    #upload-screen .note {
-      color: #888;
-      font-size: 13px;
-    }
-    #drop-zone {
-      border: 2px dashed #444;
-      border-radius: 12px;
-      padding: 40px 20px;
-      text-align: center;
-      margin: 24px 0;
-      transition: border-color 0.2s, background 0.2s;
-      cursor: pointer;
-    }
-    #drop-zone.drag-over {
-      border-color: #0f0;
-      background: rgba(0,255,0,0.05);
-    }
-    #drop-zone .icon { font-size: 48px; margin-bottom: 12px; }
-    #drop-zone .label { font-size: 16px; color: #aaa; }
-    #drop-zone .sublabel { font-size: 13px; color: #666; margin-top: 8px; }
-    #file-input { display: none; }
-    #upload-btn {
-      display: none;
-      margin: 16px auto;
-      padding: 12px 32px;
-      background: #0a0;
+    .steps li::before {
+      content: counter(step);
+      position: absolute;
+      left: 16px; top: 16px;
+      width: 28px; height: 28px;
+      background: var(--green);
       color: #000;
-      font-size: 16px;
-      font-weight: bold;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 14px;
+      line-height: 28px;
+      text-align: center;
+      border-radius: 50%;
     }
-    #upload-btn:hover { background: #0c0; }
-    #file-list {
-      margin: 12px 0;
-      font-family: monospace;
+    .steps li strong { color: #fff; }
+    .steps li code {
+      background: rgba(0,255,65,0.1);
+      color: var(--green);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: var(--mono);
       font-size: 13px;
-      color: #888;
-      max-height: 160px;
-      overflow-y: auto;
     }
-    #upload-progress {
-      display: none;
-      margin: 16px 0;
-      font-family: monospace;
-      color: #0f0;
+
+    /* ---- Links ---- */
+    a { color: var(--green); }
+    a:hover { color: #fff; }
+
+    /* ---- Get the game section ---- */
+    .store-links {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+    .store-link {
+      display: inline-block;
+      padding: 10px 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      text-decoration: none;
+      color: var(--text);
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+    .store-link:hover { border-color: var(--green); color: #fff; }
+
+    /* ---- Credits ---- */
+    .credits {
+      background: var(--green-bg);
+      border: 1px solid rgba(0,255,65,0.15);
+      border-radius: 8px;
+      padding: 24px;
+      margin-top: 20px;
+    }
+    .credits p {
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    /* ---- Footer ---- */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 20px;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 13px;
+    }
+    footer a { color: var(--green-dim); }
+
+    /* ---- Bottom CTA ---- */
+    .bottom-cta {
+      text-align: center;
+      padding: 60px 20px 80px;
+    }
+    .bottom-cta p {
+      font-family: var(--mono);
+      color: var(--green-dim);
+      margin-bottom: 24px;
+      font-size: 16px;
+    }
+
+    /* ---- Responsive ---- */
+    @media (max-width: 600px) {
+      .hero { padding: 50px 16px 40px; }
+      section { padding: 40px 0; }
+      .features { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
-  <div id="status">Loading engine...</div>
 
-  <!-- Upload screen shown when UFO data is not yet in IndexedDB -->
-  <div id="upload-screen">
-    <div class="inner">
-      <h1>OpenXcom</h1>
-      <h2>Browser Edition</h2>
-      <p>
-        OpenXcom requires the original X-COM: UFO Defense game data to play.
-        Upload your <strong>UFO/</strong> data folder below. The files will be
-        stored in your browser and persist across sessions.
-      </p>
-      <p class="note">
-        On Steam, the data is typically at:<br>
-        <code>steamapps/common/XCom UFO Defense/XCOM/</code><br>
-        You need the folders: GEODATA, GEOGRAPH, MAPS, ROUTES, SOUND, TERRAIN, UFOGRAPH, UNITS
-      </p>
-
-      <div id="drop-zone">
-        <div class="icon">&#128193;</div>
-        <div class="label">Drop your UFO data folder here</div>
-        <div class="sublabel">or click to browse</div>
-      </div>
-      <input type="file" id="file-input" webkitdirectory multiple>
-      <div id="file-list"></div>
-      <button id="upload-btn">Install Game Data</button>
-      <div id="upload-progress"></div>
-    </div>
+  <!-- Hero -->
+  <div class="hero">
+    <h1>OPENXCOM</h1>
+    <div class="subtitle">// BROWSER EDITION</div>
+    <p class="tagline">
+      The classic X-COM: UFO Defense experience, running natively in your browser.
+      No downloads. No installs. Just pure tactical alien combat.
+    </p>
+    <a href="play.html" class="cta">PLAY NOW</a>
   </div>
 
-  <script>
-    /* ------------------------------------------------------------------ */
-    /*  Globals                                                           */
-    /* ------------------------------------------------------------------ */
-    var statusEl        = document.getElementById('status');
-    var canvasEl        = document.getElementById('canvas');
-    var uploadScreen    = document.getElementById('upload-screen');
-    var dropZone        = document.getElementById('drop-zone');
-    var fileInput       = document.getElementById('file-input');
-    var fileListEl      = document.getElementById('file-list');
-    var uploadBtn       = document.getElementById('upload-btn');
-    var uploadProgress  = document.getElementById('upload-progress');
+  <!-- How it works -->
+  <section>
+    <div class="container">
+      <h2>HOW IT WORKS</h2>
+      <div class="features">
+        <div class="feature">
+          <div class="icon">&#127760;</div>
+          <h3>Runs in your browser</h3>
+          <p>OpenXcom compiled to WebAssembly. No plugins, no extensions, no install. Works in Chrome, Firefox, Edge, and Safari.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">&#128274;</div>
+          <h3>Your data stays local</h3>
+          <p>Game files are stored in your browser's IndexedDB. Nothing is uploaded to any server. Your saves never leave your machine.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">&#128190;</div>
+          <h3>Persistent saves</h3>
+          <p>Save your game and come back later — saves persist across browser sessions. Export and import saves to transfer between devices.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">&#128176;</div>
+          <h3>Bring your own data</h3>
+          <p>You need a legitimate copy of X-COM: UFO Defense. Upload your game files once and play forever. Available on Steam for under $5.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 
-    var PERSIST_DIR     = '/home/web_user/.local/share/openxcom';
-    var UFO_DIR         = PERSIST_DIR + '/UFO';
-    var REQUIRED_DIRS   = ['GEODATA','GEOGRAPH','MAPS','ROUTES','SOUND','TERRAIN','UFOGRAPH','UNITS'];
+  <!-- Getting started -->
+  <section>
+    <div class="container">
+      <h2>GETTING STARTED</h2>
+      <ol class="steps">
+        <li>
+          <strong>Get the game data.</strong>
+          You need the original X-COM: UFO Defense files. Buy it on
+          <a href="https://store.steampowered.com/app/7760/XCOM_UFO_Defense/" target="_blank" rel="noopener">Steam</a> or
+          <a href="https://www.gog.com/game/xcom_ufo_defense" target="_blank" rel="noopener">GOG</a>
+          if you don't already own it.
+        </li>
+        <li>
+          <strong>Click "Play Now"</strong> and upload your <code>XCOM</code> data folder when prompted. On Steam, it's typically at:
+          <code>steamapps/common/XCom UFO Defense/XCOM/</code>
+        </li>
+        <li>
+          <strong>Play!</strong> Your data is cached in the browser — you only need to upload once. Saves persist automatically and can be exported as backups.
+        </li>
+      </ol>
+    </div>
+  </section>
 
-    /* Files selected by the user (array of {path, file} objects) */
-    var pendingFiles = [];
+  <!-- Get the game -->
+  <section>
+    <div class="container">
+      <h2>GET THE GAME DATA</h2>
+      <p>X-COM: UFO Defense is available for just a few dollars from these stores:</p>
+      <div class="store-links">
+        <a href="https://store.steampowered.com/app/7760/XCOM_UFO_Defense/" target="_blank" rel="noopener" class="store-link">
+          Steam &rarr;
+        </a>
+        <a href="https://www.gog.com/game/xcom_ufo_defense" target="_blank" rel="noopener" class="store-link">
+          GOG.com &rarr;
+        </a>
+      </div>
+      <p style="margin-top: 16px; color: var(--text-dim); font-size: 14px;">
+        Already own a copy? You can also use data files from a CD or any other legitimate source.
+        The OpenXcom project may also support demo data for a limited experience —
+        see the <a href="https://openxcom.org" target="_blank" rel="noopener">OpenXcom wiki</a> for details.
+      </p>
+    </div>
+  </section>
 
-    /* ------------------------------------------------------------------ */
-    /*  Canvas scaling                                                    */
-    /* ------------------------------------------------------------------ */
-    function fitCanvas() {
-      var cw = canvasEl.width, ch = canvasEl.height;
-      if (!cw || !ch) return;
-      var ratio = cw / ch;
-      var winW = window.innerWidth, winH = window.innerHeight;
-      var w, h;
-      if (winW / winH > ratio) { h = winH; w = Math.round(h * ratio); }
-      else                     { w = winW; h = Math.round(w / ratio); }
-      canvasEl.style.width  = w + 'px';
-      canvasEl.style.height = h + 'px';
-    }
-    window.addEventListener('resize', fitCanvas);
-    canvasEl.addEventListener('click', function() { canvasEl.focus(); });
+  <!-- Credits -->
+  <section>
+    <div class="container">
+      <h2>CREDITS</h2>
+      <div class="credits">
+        <p>
+          This project would not exist without the incredible work of the
+          <a href="https://openxcom.org" target="_blank" rel="noopener"><strong>OpenXcom</strong></a> team.
+          OpenXcom is an open-source reimplementation of the original X-COM game engine,
+          built with love by a dedicated community of developers and X-COM fans since 2010.
+        </p>
+        <p style="margin-top: 12px;">
+          The Browser Edition is a WebAssembly port of OpenXcom, bringing their work to
+          the web so anyone can play in a browser tab. All credit for the engine, game logic,
+          UI, mod support, and countless improvements goes to the
+          <a href="https://github.com/OpenXcom/OpenXcom" target="_blank" rel="noopener">OpenXcom contributors</a>.
+        </p>
+        <p style="margin-top: 12px; color: var(--text-dim);">
+          X-COM: UFO Defense was created by Julian Gollop and Mythos Games, published by
+          MicroProse. All game assets and trademarks belong to their respective owners.
+        </p>
+      </div>
+    </div>
+  </section>
 
-    /* ------------------------------------------------------------------ */
-    /*  IDBFS helpers                                                     */
-    /* ------------------------------------------------------------------ */
-    function mkdirp(path) {
-      var parts = path.split('/').filter(Boolean);
-      var cur = '';
-      for (var i = 0; i < parts.length; i++) {
-        cur += '/' + parts[i];
-        try { Module.FS.mkdir(cur); } catch(e) { /* already exists */ }
-      }
-    }
+  <!-- FAQ -->
+  <section>
+    <div class="container">
+      <h2>FAQ</h2>
+      <ol class="steps" style="counter-reset: none;">
+        <li style="padding-left: 16px;">
+          <strong>Is this legal?</strong><br>
+          Yes. OpenXcom is open-source (GPL). You provide your own legally-purchased
+          game data. No copyrighted assets are distributed by this site.
+        </li>
+        <li style="padding-left: 16px;">
+          <strong>Where is my data stored?</strong><br>
+          Everything stays in your browser's local IndexedDB storage. No data is sent to
+          any server. Clearing your browser data will remove it.
+        </li>
+        <li style="padding-left: 16px;">
+          <strong>Can I transfer saves between devices?</strong><br>
+          Yes! Use the gear menu (top-right) during gameplay to export saves as a .zip file.
+          Import them on another device using the same menu.
+        </li>
+        <li style="padding-left: 16px;">
+          <strong>Does it work on mobile?</strong><br>
+          The engine runs, but X-COM was designed for mouse input. A desktop or laptop
+          browser is recommended for the best experience.
+        </li>
+      </ol>
+    </div>
+  </section>
 
-    function syncFromIDB(cb) {
-      Module.FS.syncfs(true, function(err) {
-        if (err) console.error('syncfs(populate) error:', err);
-        cb(err);
-      });
-    }
+  <!-- Bottom CTA -->
+  <div class="bottom-cta">
+    <p>// READY, COMMANDER?</p>
+    <a href="play.html" class="cta">PLAY NOW</a>
+  </div>
 
-    function syncToIDB(cb) {
-      Module.FS.syncfs(false, function(err) {
-        if (err) console.error('syncfs(persist) error:', err);
-        if (cb) cb(err);
-      });
-    }
+  <!-- Footer -->
+  <footer>
+    <p>
+      Powered by <a href="https://openxcom.org" target="_blank" rel="noopener">OpenXcom</a> &middot;
+      <a href="https://github.com/mrmrcoleman/OpenXcom" target="_blank" rel="noopener">Source on GitHub</a> &middot;
+      X-COM: UFO Defense &copy; Mythos Games / MicroProse
+    </p>
+  </footer>
 
-    /** Check whether REQUIRED_DIRS exist under UFO_DIR */
-    function hasUFOData() {
-      try {
-        var entries = Module.FS.readdir(UFO_DIR);
-        var upper = entries.map(function(e) { return e.toUpperCase(); });
-        for (var i = 0; i < REQUIRED_DIRS.length; i++) {
-          if (upper.indexOf(REQUIRED_DIRS[i]) === -1) return false;
-        }
-        return true;
-      } catch(e) {
-        return false;
-      }
-    }
-
-    /* ------------------------------------------------------------------ */
-    /*  Upload screen logic                                               */
-    /* ------------------------------------------------------------------ */
-    dropZone.addEventListener('click', function() { fileInput.click(); });
-
-    dropZone.addEventListener('dragover', function(e) {
-      e.preventDefault(); e.stopPropagation();
-      dropZone.classList.add('drag-over');
-    });
-    dropZone.addEventListener('dragleave', function(e) {
-      e.preventDefault(); e.stopPropagation();
-      dropZone.classList.remove('drag-over');
-    });
-    dropZone.addEventListener('drop', function(e) {
-      e.preventDefault(); e.stopPropagation();
-      dropZone.classList.remove('drag-over');
-      handleDroppedItems(e.dataTransfer.items);
-    });
-
-    fileInput.addEventListener('change', function() {
-      handleSelectedFiles(fileInput.files);
-    });
-
-    /** Process files from the directory picker (<input webkitdirectory>) */
-    function handleSelectedFiles(fileList) {
-      pendingFiles = [];
-      for (var i = 0; i < fileList.length; i++) {
-        var f = fileList[i];
-        /* webkitRelativePath gives e.g. "UFO/GEODATA/foo.dat" */
-        var rel = f.webkitRelativePath || f.name;
-        /* Strip the top-level directory name so we get "GEODATA/foo.dat" */
-        var parts = rel.split('/');
-        if (parts.length > 1) parts.shift();
-        var path = parts.join('/');
-        pendingFiles.push({ path: path, file: f });
-      }
-      showPendingFiles();
-    }
-
-    /** Process items from drag-and-drop (supports directory entries) */
-    function handleDroppedItems(items) {
-      pendingFiles = [];
-      var promises = [];
-      for (var i = 0; i < items.length; i++) {
-        var entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
-        if (entry) {
-          promises.push(readEntryRecursive(entry, ''));
-        }
-      }
-      Promise.all(promises).then(function() { showPendingFiles(); });
-    }
-
-    function readEntryRecursive(entry, basePath) {
-      return new Promise(function(resolve) {
-        if (entry.isFile) {
-          entry.file(function(f) {
-            var path = basePath ? basePath + '/' + f.name : f.name;
-            pendingFiles.push({ path: path, file: f });
-            resolve();
-          });
-        } else if (entry.isDirectory) {
-          var reader = entry.createReader();
-          reader.readEntries(function(entries) {
-            var sub = basePath ? basePath + '/' + entry.name : entry.name;
-            /* If this is the top-level dropped folder, skip its name */
-            if (!basePath) sub = '';
-            var ps = [];
-            for (var i = 0; i < entries.length; i++) {
-              ps.push(readEntryRecursive(entries[i], sub || entries[i].name.split('/')[0] ? sub : ''));
-            }
-            /* Actually, we want to include the entry names properly */
-            ps = [];
-            for (var i = 0; i < entries.length; i++) {
-              var childBase = basePath ? basePath + '/' + entry.name : entry.name;
-              /* If top-level drop, strip the folder name */
-              if (!basePath) childBase = '';
-              ps.push(readEntryRecursive(entries[i], childBase));
-            }
-            Promise.all(ps).then(resolve);
-          });
-        } else {
-          resolve();
-        }
-      });
-    }
-
-    function showPendingFiles() {
-      if (pendingFiles.length === 0) return;
-      /* Show a summary */
-      var dirs = {};
-      pendingFiles.forEach(function(f) {
-        var d = f.path.split('/')[0].toUpperCase();
-        dirs[d] = (dirs[d] || 0) + 1;
-      });
-      var summary = Object.keys(dirs).sort().map(function(d) {
-        return d + '/ (' + dirs[d] + ' files)';
-      }).join('<br>');
-      fileListEl.innerHTML = '<strong>' + pendingFiles.length + ' files found:</strong><br>' + summary;
-      uploadBtn.style.display = 'block';
-    }
-
-    /** Write pending files into the Emscripten VFS and persist to IndexedDB */
-    uploadBtn.addEventListener('click', function() {
-      uploadBtn.style.display = 'none';
-      uploadProgress.style.display = 'block';
-      uploadProgress.textContent = 'Installing game data...';
-
-      var done = 0;
-      var total = pendingFiles.length;
-
-      function writeNext() {
-        if (done >= total) {
-          uploadProgress.textContent = 'Saving to browser storage...';
-          syncToIDB(function() {
-            uploadProgress.textContent = 'Done!';
-            setTimeout(startGame, 500);
-          });
-          return;
-        }
-        var item = pendingFiles[done];
-        var reader = new FileReader();
-        reader.onload = function() {
-          var fullPath = UFO_DIR + '/' + item.path;
-          /* Ensure parent directories exist */
-          var dirParts = fullPath.split('/');
-          dirParts.pop(); /* remove filename */
-          mkdirp(dirParts.join('/'));
-          Module.FS.writeFile(fullPath, new Uint8Array(reader.result));
-          done++;
-          if (done % 20 === 0 || done === total) {
-            uploadProgress.textContent = 'Installing... ' + done + '/' + total;
-          }
-          /* Yield to the browser periodically */
-          if (done % 50 === 0) setTimeout(writeNext, 0);
-          else writeNext();
-        };
-        reader.readAsArrayBuffer(item.file);
-      }
-      writeNext();
-    });
-
-    /* ------------------------------------------------------------------ */
-    /*  Game startup orchestration                                        */
-    /* ------------------------------------------------------------------ */
-    function showUploadScreen() {
-      uploadScreen.style.display = 'block';
-      statusEl.style.display = 'none';
-    }
-
-    function startGame() {
-      uploadScreen.style.display = 'none';
-      canvasEl.style.display = 'block';
-      statusEl.textContent = 'Starting OpenXcom...';
-      statusEl.style.display = 'block';
-
-      /* Launch main() — we set INVOKE_RUN=0 so it hasn't started yet */
-      Module.callMain();
-
-      statusEl.textContent = 'Running...';
-      setTimeout(function() { statusEl.style.display = 'none'; }, 2000);
-      setTimeout(fitCanvas, 200);
-      setTimeout(fitCanvas, 1000);
-    }
-
-    /**
-     * Called once the Emscripten runtime is ready.
-     * Sets up IDBFS, checks for existing game data, and either starts
-     * the game or shows the upload screen.
-     */
-    function onEngineReady() {
-      statusEl.textContent = 'Checking for game data...';
-
-      /* Create the persistent directory tree and mount IDBFS */
-      mkdirp(PERSIST_DIR);
-      Module.FS.mount(Module.FS.filesystems.IDBFS, {}, PERSIST_DIR);
-
-      /* Populate the VFS from IndexedDB */
-      syncFromIDB(function() {
-        if (hasUFOData()) {
-          console.log('UFO data found in IndexedDB — starting game');
-          startGame();
-        } else {
-          console.log('No UFO data found — showing upload screen');
-          showUploadScreen();
-        }
-      });
-    }
-
-    /* ------------------------------------------------------------------ */
-    /*  Emscripten Module configuration                                   */
-    /* ------------------------------------------------------------------ */
-    var Module = {
-      canvas: canvasEl,
-      noInitialRun: true,        /* we call callMain() ourselves */
-      print: function(text) { console.log(text); },
-      printErr: function(text) { console.error(text); },
-      setStatus: function(text) {
-        if (text) statusEl.textContent = text;
-        else statusEl.style.display = 'none';
-      },
-      onRuntimeInitialized: function() {
-        onEngineReady();
-      },
-    };
-  </script>
-  <script async src="openxcom.js"></script>
 </body>
 </html>

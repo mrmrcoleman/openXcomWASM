@@ -80,4 +80,8 @@ cp -v "${BUILD_DIR}/bin/openxcom.js"   "${DIST_DIR}/" 2>/dev/null || true
 cp -v "${BUILD_DIR}/bin/openxcom.wasm" "${DIST_DIR}/" 2>/dev/null || true
 cp -v "${BUILD_DIR}/bin/openxcom.data" "${DIST_DIR}/" 2>/dev/null || true
 
-echo "Done. Check ${DIST_DIR}/ for openxcom.js, openxcom.wasm, openxcom.data"
+# Copy web assets (landing page + game page)
+cp -v "${ROOT}/web/index.html" "${DIST_DIR}/"
+cp -v "${ROOT}/web/play.html"  "${DIST_DIR}/" 2>/dev/null || true
+
+echo "Done. Check ${DIST_DIR}/ for openxcom.js, openxcom.wasm, openxcom.data, index.html, play.html"

@@ -11,8 +11,9 @@ if [[ ! -f "${DIST_DIR}/openxcom.js" ]]; then
   exit 1
 fi
 
-# Copy HTML shell alongside WASM artifacts
+# Copy web assets alongside WASM artifacts
 cp -v "${ROOT}/web/index.html" "${DIST_DIR}/"
+cp -v "${ROOT}/web/play.html"  "${DIST_DIR}/" 2>/dev/null || true
 
 echo ""
 echo "Serving at http://localhost:8080"
