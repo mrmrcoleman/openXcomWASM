@@ -11,7 +11,7 @@ Play [OpenXcom](https://openxcom.org) in your browser. The full C++ engine compi
 - Full OpenXcom engine running natively in the browser via WebAssembly
 - Game data and saves stored locally in IndexedDB (nothing leaves your machine)
 - Persistent saves across browser sessions
-- Export/import saves as `.zip` for backup or cross-device transfer
+- Export/import saves as `.zip` or `.sav` for backup or cross-device transfer
 - Service worker for offline play after first visit
 - Landing page with getting-started guide
 
