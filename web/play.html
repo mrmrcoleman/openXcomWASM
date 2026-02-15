@@ -980,32 +980,87 @@
         return;
       }
 
+      /* Log canvas state right after callMain */
+      diagLog('Canvas intrinsic size: ' + canvasEl.width + 'x' + canvasEl.height);
+      diagLog('Canvas CSS size: ' + canvasEl.style.width + ' x ' + canvasEl.style.height);
+      diagLog('Canvas display: ' + canvasEl.style.display);
+
+      /* Check what GL context the canvas has */
+      try {
+        var gl = canvasEl.getContext('webgl2') || canvasEl.getContext('webgl');
+        if (gl) {
+          diagLog('Canvas has WebGL context: ' + gl.getParameter(gl.VERSION), 'ok');
+          var vp = gl.getParameter(gl.VIEWPORT);
+          diagLog('WebGL viewport: ' + vp[0] + ',' + vp[1] + ' ' + vp[2] + 'x' + vp[3]);
+        } else {
+          /* SDL2 might be using 2D canvas instead */
+          var ctx2d = canvasEl.getContext('2d');
+          if (ctx2d) {
+            diagLog('Canvas has 2D context (no WebGL)');
+          } else {
+            diagLog('Canvas has no rendering context!', 'warn');
+          }
+        }
+      } catch(e) {
+        diagLog('Could not inspect canvas context: ' + e.message, 'warn');
+      }
+
+      /* Log any engine stderr captured so far */
+      if (_engineErrors.length > 0) {
+        diagLog('Engine stderr (' + _engineErrors.length + ' lines): ' + _engineErrors.slice(-5).join(' | '), 'warn');
+      } else {
+        diagLog('No engine stderr output', 'ok');
+      }
+
       statusEl.textContent = 'Running...';
       setTimeout(function() { statusEl.style.display = 'none'; }, 2000);
       setTimeout(fitCanvas, 200);
       setTimeout(fitCanvas, 1000);
 
-      /* Watchdog: if canvas is still blank after 8 seconds, warn the user */
-      setTimeout(function() {
-        try {
-          var ctx = canvasEl.getContext('2d');
-          if (ctx) {
-            var px = ctx.getImageData(0, 0, Math.min(canvasEl.width, 100), Math.min(canvasEl.height, 100));
-            var allBlack = true;
-            for (var i = 0; i < px.data.length; i += 4) {
-              if (px.data[i] !== 0 || px.data[i+1] !== 0 || px.data[i+2] !== 0) {
-                allBlack = false;
-                break;
+      /* Watchdog: check canvas state at 3s, 8s, 15s */
+      [3000, 8000, 15000].forEach(function(delay) {
+        setTimeout(function() {
+          var w = canvasEl.width, h = canvasEl.height;
+          diagLog('Watchdog @' + (delay/1000) + 's — canvas: ' + w + 'x' + h +
+            ', display: ' + canvasEl.style.display +
+            ', CSS: ' + canvasEl.style.width + ' x ' + canvasEl.style.height);
+
+          if (w === 0 || h === 0) {
+            diagLog('Canvas has zero dimensions at ' + (delay/1000) + 's!', 'fail');
+            if (delay >= 8000) {
+              showError(
+                'BLACK SCREEN',
+                'The game engine started but the canvas has zero dimensions. The game may have failed to initialize its display.',
+                'Canvas size: ' + w + 'x' + h + '\n\nRecent engine output:\n' + _engineErrors.slice(-10).join('\n')
+              );
+            }
+            return;
+          }
+
+          /* Try to read pixels via WebGL to check if anything is being drawn */
+          try {
+            var gl = canvasEl.getContext('webgl2') || canvasEl.getContext('webgl');
+            if (gl) {
+              var pixels = new Uint8Array(4 * 4);  /* Read a small 2x2 patch from center */
+              gl.readPixels(
+                Math.floor(w/2), Math.floor(h/2), 2, 2,
+                gl.RGBA, gl.UNSIGNED_BYTE, pixels
+              );
+              var allZero = true;
+              for (var i = 0; i < pixels.length; i++) {
+                if (pixels[i] !== 0) { allZero = false; break; }
+              }
+              if (allZero && delay >= 8000) {
+                diagLog('Canvas center pixels are all black at ' + (delay/1000) + 's', 'warn');
+                statusEl.textContent = 'Game may be loading... if the screen stays black, try reloading.';
+                statusEl.style.display = 'block';
+              } else if (!allZero) {
+                diagLog('Canvas is rendering content at ' + (delay/1000) + 's', 'ok');
               }
             }
-            if (allBlack) {
-              diagLog('Canvas appears blank 8s after launch', 'warn');
-            } else {
-              diagLog('Canvas is rendering content', 'ok');
-            }
-          }
-        } catch(e) { /* cross-origin or other issue, ignore */ }
-      }, 8000);
+          } catch(e) { /* ignore readPixels errors */ }
+        }, delay);
+      });
     }
 
     /**
