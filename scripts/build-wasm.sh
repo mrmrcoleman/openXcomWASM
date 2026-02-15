@@ -1,17 +1,41 @@
 #!/usr/bin/env bash
-# Phase 2: Build OpenXcom for WASM with Emscripten. Run from repo root.
-# Requires: Emscripten SDK (emcmake, emmake), and OpenXcom with Emscripten CMake support.
+# Build OpenXcom for WASM with Emscripten.
+# Requires: Emscripten SDK (emcmake, emmake)
 #   Install: https://emscripten.org/docs/getting_started/downloads.html
+#
+# Environment variables:
+#   OPENXCOM_SRC  — path to a local OpenXcom clone (instead of the pinned
+#                   submodule). Example:
+#                     OPENXCOM_SRC=../OpenXcom ./scripts/build-wasm.sh
+#
+#   GAME_DATA     — path to the proprietary UFO game data directory
+#                   (e.g. ~/Library/Application Support/OpenXcom/UFO).
+#                   When set, the data is preloaded into the WASM VFS.
 
 set -e
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OPENXCOM="${ROOT}/OpenXcom"
+
+if [[ -n "${OPENXCOM_SRC:-}" ]]; then
+  # Resolve to absolute path
+  OPENXCOM="$(cd "${OPENXCOM_SRC}" 2>/dev/null && pwd)" || {
+    echo "OPENXCOM_SRC path not found: ${OPENXCOM_SRC}"
+    exit 1
+  }
+  echo "Using local source: ${OPENXCOM}"
+else
+  OPENXCOM="${ROOT}/OpenXcom"
+fi
+
 BUILD_DIR="${OPENXCOM}/build-wasm"
 DIST_DIR="${ROOT}/dist"
 
-if [[ ! -d "$OPENXCOM" ]]; then
-  echo "OpenXcom submodule not found at $OPENXCOM. Initialize it first:"
-  echo "  git submodule update --init"
+if [[ ! -d "$OPENXCOM/src" ]]; then
+  if [[ -n "${OPENXCOM_SRC:-}" ]]; then
+    echo "No OpenXcom source tree found at $OPENXCOM (missing src/ directory)."
+  else
+    echo "OpenXcom submodule not initialized. Run:"
+    echo "  git submodule update --init"
+  fi
   exit 1
 fi
 
@@ -21,10 +45,31 @@ if ! command -v emcmake &>/dev/null; then
   exit 1
 fi
 
+# Optional: resolve GAME_DATA to absolute path and pass to CMake
+EXTRA_CMAKE_ARGS=""
+if [[ -n "${GAME_DATA:-}" ]]; then
+  UFO_PATH="$(cd "${GAME_DATA}" 2>/dev/null && pwd)" || {
+    echo "GAME_DATA path not found: ${GAME_DATA}"
+    exit 1
+  }
+  # Emscripten's file_packager cannot handle spaces in paths.
+  # Work around by creating a symlink in /tmp if the path has spaces.
+  if [[ "$UFO_PATH" == *" "* ]]; then
+    UFO_LINK="/tmp/openxcom-ufo-data"
+    rm -f "$UFO_LINK"
+    ln -s "$UFO_PATH" "$UFO_LINK"
+    UFO_PATH="$UFO_LINK"
+    echo "Created symlink (path contains spaces): ${UFO_LINK} -> ${GAME_DATA}"
+  fi
+  EXTRA_CMAKE_ARGS="-DUFO_DATA_DIR=${UFO_PATH}"
+  echo "Will preload UFO data from: ${UFO_PATH}"
+fi
+
 echo "Configuring OpenXcom for WASM in ${BUILD_DIR}..."
 emcmake cmake -B "$BUILD_DIR" -S "$OPENXCOM" \
   -DCMAKE_BUILD_TYPE=Release \
-  -DBUILD_PACKAGE=OFF
+  -DBUILD_PACKAGE=OFF \
+  ${EXTRA_CMAKE_ARGS}
 
 echo "Building (this can take a while)..."
 emmake cmake --build "$BUILD_DIR" --config Release
@@ -33,10 +78,6 @@ mkdir -p "$DIST_DIR"
 echo "Copying artifacts to ${DIST_DIR}..."
 cp -v "${BUILD_DIR}/bin/openxcom.js"   "${DIST_DIR}/" 2>/dev/null || true
 cp -v "${BUILD_DIR}/bin/openxcom.wasm" "${DIST_DIR}/" 2>/dev/null || true
-cp -v "${BUILD_DIR}/bin/openxcom.html" "${DIST_DIR}/" 2>/dev/null || true
-# Emscripten may output .html as the main target name
-if [[ -f "${BUILD_DIR}/bin/openxcom.html" ]]; then
-  cp -v "${BUILD_DIR}/bin/openxcom.html" "${DIST_DIR}/"
-fi
+cp -v "${BUILD_DIR}/bin/openxcom.data" "${DIST_DIR}/" 2>/dev/null || true
 
-echo "Done. Check ${DIST_DIR}/ for openxcom.js, openxcom.wasm, openxcom.html"
+echo "Done. Check ${DIST_DIR}/ for openxcom.js, openxcom.wasm, openxcom.data"

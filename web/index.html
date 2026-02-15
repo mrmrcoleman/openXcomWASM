@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>OpenXcom</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
+
+    /* ---- Game canvas (hidden until the game starts) ---- */
+    #canvas {
+      display: none;
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+      cursor: none;
+    }
+
+    /* ---- Status bar ---- */
+    #status {
+      position: absolute;
+      bottom: 20px;
+      width: 100%;
+      text-align: center;
+      color: #0f0;
+      font-family: monospace;
+      font-size: 14px;
+      z-index: 10;
+    }
+
+    /* ---- Upload screen ---- */
+    #upload-screen {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: #111;
+      color: #ccc;
+      z-index: 20;
+      overflow-y: auto;
+    }
+    #upload-screen .inner {
+      max-width: 640px;
+      margin: 60px auto;
+      padding: 0 20px;
+    }
+    #upload-screen h1 {
+      color: #0f0;
+      font-family: monospace;
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+    #upload-screen h2 {
+      color: #0a0;
+      font-family: monospace;
+      font-size: 16px;
+      font-weight: normal;
+      margin-bottom: 24px;
+    }
+    #upload-screen p {
+      line-height: 1.6;
+      margin-bottom: 16px;
+      font-size: 15px;
+    }
+    #upload-screen .note {
+      color: #888;
+      font-size: 13px;
+    }
+    #drop-zone {
+      border: 2px dashed #444;
+      border-radius: 12px;
+      padding: 40px 20px;
+      text-align: center;
+      margin: 24px 0;
+      transition: border-color 0.2s, background 0.2s;
+      cursor: pointer;
+    }
+    #drop-zone.drag-over {
+      border-color: #0f0;
+      background: rgba(0,255,0,0.05);
+    }
+    #drop-zone .icon { font-size: 48px; margin-bottom: 12px; }
+    #drop-zone .label { font-size: 16px; color: #aaa; }
+    #drop-zone .sublabel { font-size: 13px; color: #666; margin-top: 8px; }
+    #file-input { display: none; }
+    #upload-btn {
+      display: none;
+      margin: 16px auto;
+      padding: 12px 32px;
+      background: #0a0;
+      color: #000;
+      font-size: 16px;
+      font-weight: bold;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    #upload-btn:hover { background: #0c0; }
+    #file-list {
+      margin: 12px 0;
+      font-family: monospace;
+      font-size: 13px;
+      color: #888;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+    #upload-progress {
+      display: none;
+      margin: 16px 0;
+      font-family: monospace;
+      color: #0f0;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+  <div id="status">Loading engine...</div>
+
+  <!-- Upload screen shown when UFO data is not yet in IndexedDB -->
+  <div id="upload-screen">
+    <div class="inner">
+      <h1>OpenXcom</h1>
+      <h2>Browser Edition</h2>
+      <p>
+        OpenXcom requires the original X-COM: UFO Defense game data to play.
+        Upload your <strong>UFO/</strong> data folder below. The files will be
+        stored in your browser and persist across sessions.
+      </p>
+      <p class="note">
+        On Steam, the data is typically at:<br>
+        <code>steamapps/common/XCom UFO Defense/XCOM/</code><br>
+        You need the folders: GEODATA, GEOGRAPH, MAPS, ROUTES, SOUND, TERRAIN, UFOGRAPH, UNITS
+      </p>
+
+      <div id="drop-zone">
+        <div class="icon">&#128193;</div>
+        <div class="label">Drop your UFO data folder here</div>
+        <div class="sublabel">or click to browse</div>
+      </div>
+      <input type="file" id="file-input" webkitdirectory multiple>
+      <div id="file-list"></div>
+      <button id="upload-btn">Install Game Data</button>
+      <div id="upload-progress"></div>
+    </div>
+  </div>
+
+  <script>
+    /* ------------------------------------------------------------------ */
+    /*  Globals                                                           */
+    /* ------------------------------------------------------------------ */
+    var statusEl        = document.getElementById('status');
+    var canvasEl        = document.getElementById('canvas');
+    var uploadScreen    = document.getElementById('upload-screen');
+    var dropZone        = document.getElementById('drop-zone');
+    var fileInput       = document.getElementById('file-input');
+    var fileListEl      = document.getElementById('file-list');
+    var uploadBtn       = document.getElementById('upload-btn');
+    var uploadProgress  = document.getElementById('upload-progress');
+
+    var PERSIST_DIR     = '/home/web_user/.local/share/openxcom';
+    var UFO_DIR         = PERSIST_DIR + '/UFO';
+    var REQUIRED_DIRS   = ['GEODATA','GEOGRAPH','MAPS','ROUTES','SOUND','TERRAIN','UFOGRAPH','UNITS'];
+
+    /* Files selected by the user (array of {path, file} objects) */
+    var pendingFiles = [];
+
+    /* ------------------------------------------------------------------ */
+    /*  Canvas scaling                                                    */
+    /* ------------------------------------------------------------------ */
+    function fitCanvas() {
+      var cw = canvasEl.width, ch = canvasEl.height;
+      if (!cw || !ch) return;
+      var ratio = cw / ch;
+      var winW = window.innerWidth, winH = window.innerHeight;
+      var w, h;
+      if (winW / winH > ratio) { h = winH; w = Math.round(h * ratio); }
+      else                     { w = winW; h = Math.round(w / ratio); }
+      canvasEl.style.width  = w + 'px';
+      canvasEl.style.height = h + 'px';
+    }
+    window.addEventListener('resize', fitCanvas);
+    canvasEl.addEventListener('click', function() { canvasEl.focus(); });
+
+    /* ------------------------------------------------------------------ */
+    /*  IDBFS helpers                                                     */
+    /* ------------------------------------------------------------------ */
+    function mkdirp(path) {
+      var parts = path.split('/').filter(Boolean);
+      var cur = '';
+      for (var i = 0; i < parts.length; i++) {
+        cur += '/' + parts[i];
+        try { Module.FS.mkdir(cur); } catch(e) { /* already exists */ }
+      }
+    }
+
+    function syncFromIDB(cb) {
+      Module.FS.syncfs(true, function(err) {
+        if (err) console.error('syncfs(populate) error:', err);
+        cb(err);
+      });
+    }
+
+    function syncToIDB(cb) {
+      Module.FS.syncfs(false, function(err) {
+        if (err) console.error('syncfs(persist) error:', err);
+        if (cb) cb(err);
+      });
+    }
+
+    /** Check whether REQUIRED_DIRS exist under UFO_DIR */
+    function hasUFOData() {
+      try {
+        var entries = Module.FS.readdir(UFO_DIR);
+        var upper = entries.map(function(e) { return e.toUpperCase(); });
+        for (var i = 0; i < REQUIRED_DIRS.length; i++) {
+          if (upper.indexOf(REQUIRED_DIRS[i]) === -1) return false;
+        }
+        return true;
+      } catch(e) {
+        return false;
+      }
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Upload screen logic                                               */
+    /* ------------------------------------------------------------------ */
+    dropZone.addEventListener('click', function() { fileInput.click(); });
+
+    dropZone.addEventListener('dragover', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      dropZone.classList.add('drag-over');
+    });
+    dropZone.addEventListener('dragleave', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      dropZone.classList.remove('drag-over');
+    });
+    dropZone.addEventListener('drop', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      dropZone.classList.remove('drag-over');
+      handleDroppedItems(e.dataTransfer.items);
+    });
+
+    fileInput.addEventListener('change', function() {
+      handleSelectedFiles(fileInput.files);
+    });
+
+    /** Process files from the directory picker (<input webkitdirectory>) */
+    function handleSelectedFiles(fileList) {
+      pendingFiles = [];
+      for (var i = 0; i < fileList.length; i++) {
+        var f = fileList[i];
+        /* webkitRelativePath gives e.g. "UFO/GEODATA/foo.dat" */
+        var rel = f.webkitRelativePath || f.name;
+        /* Strip the top-level directory name so we get "GEODATA/foo.dat" */
+        var parts = rel.split('/');
+        if (parts.length > 1) parts.shift();
+        var path = parts.join('/');
+        pendingFiles.push({ path: path, file: f });
+      }
+      showPendingFiles();
+    }
+
+    /** Process items from drag-and-drop (supports directory entries) */
+    function handleDroppedItems(items) {
+      pendingFiles = [];
+      var promises = [];
+      for (var i = 0; i < items.length; i++) {
+        var entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
+        if (entry) {
+          promises.push(readEntryRecursive(entry, ''));
+        }
+      }
+      Promise.all(promises).then(function() { showPendingFiles(); });
+    }
+
+    function readEntryRecursive(entry, basePath) {
+      return new Promise(function(resolve) {
+        if (entry.isFile) {
+          entry.file(function(f) {
+            var path = basePath ? basePath + '/' + f.name : f.name;
+            pendingFiles.push({ path: path, file: f });
+            resolve();
+          });
+        } else if (entry.isDirectory) {
+          var reader = entry.createReader();
+          reader.readEntries(function(entries) {
+            var sub = basePath ? basePath + '/' + entry.name : entry.name;
+            /* If this is the top-level dropped folder, skip its name */
+            if (!basePath) sub = '';
+            var ps = [];
+            for (var i = 0; i < entries.length; i++) {
+              ps.push(readEntryRecursive(entries[i], sub || entries[i].name.split('/')[0] ? sub : ''));
+            }
+            /* Actually, we want to include the entry names properly */
+            ps = [];
+            for (var i = 0; i < entries.length; i++) {
+              var childBase = basePath ? basePath + '/' + entry.name : entry.name;
+              /* If top-level drop, strip the folder name */
+              if (!basePath) childBase = '';
+              ps.push(readEntryRecursive(entries[i], childBase));
+            }
+            Promise.all(ps).then(resolve);
+          });
+        } else {
+          resolve();
+        }
+      });
+    }
+
+    function showPendingFiles() {
+      if (pendingFiles.length === 0) return;
+      /* Show a summary */
+      var dirs = {};
+      pendingFiles.forEach(function(f) {
+        var d = f.path.split('/')[0].toUpperCase();
+        dirs[d] = (dirs[d] || 0) + 1;
+      });
+      var summary = Object.keys(dirs).sort().map(function(d) {
+        return d + '/ (' + dirs[d] + ' files)';
+      }).join('<br>');
+      fileListEl.innerHTML = '<strong>' + pendingFiles.length + ' files found:</strong><br>' + summary;
+      uploadBtn.style.display = 'block';
+    }
+
+    /** Write pending files into the Emscripten VFS and persist to IndexedDB */
+    uploadBtn.addEventListener('click', function() {
+      uploadBtn.style.display = 'none';
+      uploadProgress.style.display = 'block';
+      uploadProgress.textContent = 'Installing game data...';
+
+      var done = 0;
+      var total = pendingFiles.length;
+
+      function writeNext() {
+        if (done >= total) {
+          uploadProgress.textContent = 'Saving to browser storage...';
+          syncToIDB(function() {
+            uploadProgress.textContent = 'Done!';
+            setTimeout(startGame, 500);
+          });
+          return;
+        }
+        var item = pendingFiles[done];
+        var reader = new FileReader();
+        reader.onload = function() {
+          var fullPath = UFO_DIR + '/' + item.path;
+          /* Ensure parent directories exist */
+          var dirParts = fullPath.split('/');
+          dirParts.pop(); /* remove filename */
+          mkdirp(dirParts.join('/'));
+          Module.FS.writeFile(fullPath, new Uint8Array(reader.result));
+          done++;
+          if (done % 20 === 0 || done === total) {
+            uploadProgress.textContent = 'Installing... ' + done + '/' + total;
+          }
+          /* Yield to the browser periodically */
+          if (done % 50 === 0) setTimeout(writeNext, 0);
+          else writeNext();
+        };
+        reader.readAsArrayBuffer(item.file);
+      }
+      writeNext();
+    });
+
+    /* ------------------------------------------------------------------ */
+    /*  Game startup orchestration                                        */
+    /* ------------------------------------------------------------------ */
+    function showUploadScreen() {
+      uploadScreen.style.display = 'block';
+      statusEl.style.display = 'none';
+    }
+
+    function startGame() {
+      uploadScreen.style.display = 'none';
+      canvasEl.style.display = 'block';
+      statusEl.textContent = 'Starting OpenXcom...';
+      statusEl.style.display = 'block';
+
+      /* Launch main() — we set INVOKE_RUN=0 so it hasn't started yet */
+      Module.callMain();
+
+      statusEl.textContent = 'Running...';
+      setTimeout(function() { statusEl.style.display = 'none'; }, 2000);
+      setTimeout(fitCanvas, 200);
+      setTimeout(fitCanvas, 1000);
+    }
+
+    /**
+     * Called once the Emscripten runtime is ready.
+     * Sets up IDBFS, checks for existing game data, and either starts
+     * the game or shows the upload screen.
+     */
+    function onEngineReady() {
+      statusEl.textContent = 'Checking for game data...';
+
+      /* Create the persistent directory tree and mount IDBFS */
+      mkdirp(PERSIST_DIR);
+      Module.FS.mount(Module.FS.filesystems.IDBFS, {}, PERSIST_DIR);
+
+      /* Populate the VFS from IndexedDB */
+      syncFromIDB(function() {
+        if (hasUFOData()) {
+          console.log('UFO data found in IndexedDB — starting game');
+          startGame();
+        } else {
+          console.log('No UFO data found — showing upload screen');
+          showUploadScreen();
+        }
+      });
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*  Emscripten Module configuration                                   */
+    /* ------------------------------------------------------------------ */
+    var Module = {
+      canvas: canvasEl,
+      noInitialRun: true,        /* we call callMain() ourselves */
+      print: function(text) { console.log(text); },
+      printErr: function(text) { console.error(text); },
+      setStatus: function(text) {
+        if (text) statusEl.textContent = text;
+        else statusEl.style.display = 'none';
+      },
+      onRuntimeInitialized: function() {
+        onEngineReady();
+      },
+    };
+  </script>
+  <script async src="openxcom.js"></script>
+</body>
+</html>
