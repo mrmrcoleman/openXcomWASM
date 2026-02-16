@@ -800,40 +800,52 @@
       for (var i = 0; i < items.length; i++) {
         var entry = items[i].webkitGetAsEntry ? items[i].webkitGetAsEntry() : null;
         if (entry) {
-          promises.push(readEntryRecursive(entry, ''));
+          promises.push(readEntryRecursive(entry, '', true));
         }
       }
-      Promise.all(promises).then(function() { showPendingFiles(); });
+      Promise.all(promises).then(function() {
+        diagLog('Drag-and-drop: read ' + pendingFiles.length + ' file(s)');
+        showPendingFiles();
+      });
     }
 
-    function readEntryRecursive(entry, basePath) {
+    /**
+     * Recursively read a FileSystemEntry.
+     * isTopLevel=true for the initially dropped folder (its name is stripped).
+     *
+     * Firefox's readEntries() may not return all entries in one call.
+     * The spec requires calling it repeatedly until it returns empty.
+     */
+    function readEntryRecursive(entry, basePath, isTopLevel) {
       return new Promise(function(resolve) {
         if (entry.isFile) {
           entry.file(function(f) {
             var path = basePath ? basePath + '/' + f.name : f.name;
             pendingFiles.push({ path: path, file: f });
             resolve();
-          });
+          }, function() { resolve(); });
         } else if (entry.isDirectory) {
           var reader = entry.createReader();
-          reader.readEntries(function(entries) {
-            var sub = basePath ? basePath + '/' + entry.name : entry.name;
-            /* If this is the top-level dropped folder, skip its name */
-            if (!basePath) sub = '';
-            var ps = [];
-            for (var i = 0; i < entries.length; i++) {
-              ps.push(readEntryRecursive(entries[i], sub || entries[i].name.split('/')[0] ? sub : ''));
-            }
-            /* Actually, we want to include the entry names properly */
-            ps = [];
-            for (var i = 0; i < entries.length; i++) {
-              var childBase = basePath ? basePath + '/' + entry.name : entry.name;
-              /* If top-level drop, strip the folder name */
-              if (!basePath) childBase = '';
-              ps.push(readEntryRecursive(entries[i], childBase));
-            }
-            Promise.all(ps).then(resolve);
-          });
+          var childBase = isTopLevel ? '' : (basePath ? basePath + '/' + entry.name : entry.name);
+          var allEntries = [];
+
+          function readBatch() {
+            reader.readEntries(function(batch) {
+              if (batch.length === 0) {
+                var ps = [];
+                for (var i = 0; i < allEntries.length; i++) {
+                  ps.push(readEntryRecursive(allEntries[i], childBase, false));
+                }
+                Promise.all(ps).then(resolve);
+              } else {
+                for (var i = 0; i < batch.length; i++) {
+                  allEntries.push(batch[i]);
+                }
+                readBatch();
+              }
+            }, function() { resolve(); });
+          }
+          readBatch();
         } else {
           resolve();
         }
@@ -1137,6 +1149,19 @@
       toolbar.style.display = 'block';
       statusEl.textContent = 'Starting OpenXcom...';
       statusEl.style.display = 'block';
+
+      /* Resume any suspended AudioContext (browsers block autoplay without
+         a user gesture). This click/tap that triggers startGame counts. */
+      try {
+        var ac = window.AudioContext || window.webkitAudioContext;
+        if (ac && Module && Module.SDL && Module.SDL.audioContext) {
+          if (Module.SDL.audioContext.state === 'suspended') {
+            Module.SDL.audioContext.resume().then(function() {
+              diagLog('AudioContext resumed', 'ok');
+            });
+          }
+        }
+      } catch(ignore) {}
 
       try {
         diagLog('Calling Module.callMain()...');
