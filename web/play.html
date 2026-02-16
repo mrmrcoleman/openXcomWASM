@@ -456,13 +456,27 @@
   <!-- Reset confirm modal -->
   <div class="modal-overlay" id="reset-modal">
     <div class="modal-box">
-      <h3>Reset All Data</h3>
-      <p>This will <strong>permanently delete</strong> all uploaded game data
-         and saved games from your browser. You will need to upload the UFO
-         data again.</p>
-      <div class="btn-row">
-        <button class="btn-cancel" id="reset-cancel">Cancel</button>
-        <button class="btn-danger" id="reset-confirm">Delete Everything</button>
+      <!-- Step 1: initial confirmation -->
+      <div id="reset-step1">
+        <h3>Reset All Data</h3>
+        <p>This will <strong>permanently delete</strong> all uploaded game data
+           and saved games from your browser. You will need to upload the UFO
+           data again.</p>
+        <div class="btn-row">
+          <button class="btn-cancel" id="reset-cancel">Cancel</button>
+          <button class="btn-danger" id="reset-confirm">Delete Everything</button>
+        </div>
+      </div>
+      <!-- Step 2: extra warning when save files exist -->
+      <div id="reset-step2" style="display:none;">
+        <h3>&#9888;&#65039; You have saved games!</h3>
+        <p id="reset-save-count"></p>
+        <p>These saves will be <strong>permanently lost</strong> and cannot be
+           recovered. Consider exporting your saves first.</p>
+        <div class="btn-row">
+          <button class="btn-cancel" id="reset-back">Back</button>
+          <button class="btn-danger" id="reset-confirm-final">Yes, Delete Everything</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1521,20 +1535,32 @@
 
     /* ---- Reset all data ---- */
     var resetModal = document.getElementById('reset-modal');
+    var resetStep1 = document.getElementById('reset-step1');
+    var resetStep2 = document.getElementById('reset-step2');
 
-    document.getElementById('btn-reset').addEventListener('click', function() {
-      toolbarMenu.style.display = 'none';
-      resetModal.classList.add('active');
-    });
-    document.getElementById('reset-cancel').addEventListener('click', function() {
+    function showResetStep1() {
+      resetStep1.style.display = '';
+      resetStep2.style.display = 'none';
+    }
+
+    function countSaveFiles() {
+      try {
+        var savesDir = PERSIST_DIR + '/xcom1';
+        var entries = Module.FS.readdir(savesDir);
+        var count = 0;
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].toLowerCase().endsWith('.sav')) count++;
+        }
+        return count;
+      } catch(e) { return 0; }
+    }
+
+    function performReset() {
       resetModal.classList.remove('active');
-    });
-    document.getElementById('reset-confirm').addEventListener('click', function() {
-      resetModal.classList.remove('active');
+      showResetStep1();
       statusEl.textContent = 'Deleting all data...';
       statusEl.style.display = 'block';
 
-      /* Delete all entries from the IndexedDB database directly */
       var dbName = PERSIST_DIR;
       var req = indexedDB.deleteDatabase(dbName);
       req.onsuccess = function() {
@@ -1543,13 +1569,41 @@
       };
       req.onerror = function() {
         console.error('Failed to delete IndexedDB:', dbName);
-        /* Try reloading anyway */
         window.location.reload();
       };
       req.onblocked = function() {
-        console.warn('IndexedDB delete blocked — reloading');
+        console.warn('IndexedDB delete blocked - reloading');
         window.location.reload();
       };
+    }
+
+    document.getElementById('btn-reset').addEventListener('click', function() {
+      toolbarMenu.style.display = 'none';
+      showResetStep1();
+      resetModal.classList.add('active');
+    });
+    document.getElementById('reset-cancel').addEventListener('click', function() {
+      resetModal.classList.remove('active');
+      showResetStep1();
+    });
+    document.getElementById('reset-confirm').addEventListener('click', function() {
+      var saveCount = countSaveFiles();
+      if (saveCount > 0) {
+        var msg = saveCount === 1
+          ? 'You have <strong>1 saved game</strong> that will be deleted.'
+          : 'You have <strong>' + saveCount + ' saved games</strong> that will be deleted.';
+        document.getElementById('reset-save-count').innerHTML = msg;
+        resetStep1.style.display = 'none';
+        resetStep2.style.display = '';
+      } else {
+        performReset();
+      }
+    });
+    document.getElementById('reset-back').addEventListener('click', function() {
+      showResetStep1();
+    });
+    document.getElementById('reset-confirm-final').addEventListener('click', function() {
+      performReset();
     });
 
     /* ------------------------------------------------------------------ */
