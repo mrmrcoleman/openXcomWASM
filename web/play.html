@@ -1167,6 +1167,12 @@
         diagLog('Calling Module.callMain()...');
         Module.callMain();
         diagLog('Module.callMain() returned successfully', 'ok');
+
+        /* Suppress browser context menu on right-click so it doesn't
+           interfere with right-click-drag scrolling in the game. */
+        canvasEl.addEventListener('contextmenu', function(e) {
+          e.preventDefault();
+        });
       } catch(e) {
         diagLog('callMain() threw: ' + (e.message || e), 'fail');
         showError(
