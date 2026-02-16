@@ -65,6 +65,15 @@ if [[ -n "${GAME_DATA:-}" ]]; then
   echo "Will preload UFO data from: ${UFO_PATH}"
 fi
 
+# If a cached build dir exists, remove CMake config files that embed absolute
+# paths (e.g. the Emscripten SDK temp directory which changes every CI run).
+# Object files are preserved so incremental compilation still works.
+if [[ -f "$BUILD_DIR/CMakeCache.txt" ]]; then
+  echo "Clearing stale CMake config (preserving object files for incremental build)..."
+  rm -f  "$BUILD_DIR/CMakeCache.txt"
+  rm -rf "$BUILD_DIR/CMakeFiles"
+fi
+
 echo "Configuring OpenXcom for WASM in ${BUILD_DIR}..."
 emcmake cmake -B "$BUILD_DIR" -S "$OPENXCOM" \
   -DCMAKE_BUILD_TYPE=Release \
