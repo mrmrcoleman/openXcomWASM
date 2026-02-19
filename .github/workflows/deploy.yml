@@ -65,6 +65,8 @@ jobs:
           cp -v web/play.html    dist/
           cp -v web/sw.js        dist/
           cp -v web/jszip.min.js dist/
+          cp -v web/sitemap.xml   dist/
+          cp -v web/robots.txt    dist/
           ls -lh dist/
 
       - name: Stamp service worker version

@@ -95,5 +95,7 @@ cp -v "${ROOT}/web/index.html"    "${DIST_DIR}/"
 cp -v "${ROOT}/web/play.html"     "${DIST_DIR}/" 2>/dev/null || true
 cp -v "${ROOT}/web/sw.js"         "${DIST_DIR}/" 2>/dev/null || true
 cp -v "${ROOT}/web/jszip.min.js"  "${DIST_DIR}/" 2>/dev/null || true
+cp -v "${ROOT}/web/sitemap.xml"   "${DIST_DIR}/" 2>/dev/null || true
+cp -v "${ROOT}/web/robots.txt"    "${DIST_DIR}/" 2>/dev/null || true
 
 echo "Done. Check ${DIST_DIR}/ for openxcom.js, openxcom.wasm, openxcom.data, index.html, play.html, sw.js"
